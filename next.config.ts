@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 /**
  * Baseline security headers applied to every response.
@@ -18,18 +18,18 @@ import type { NextConfig } from "next";
  */
 const SECURITY_HEADERS = [
   {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
+    key: 'Strict-Transport-Security',
+    value: 'max-age=63072000; includeSubDomains; preload',
   },
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    key: 'Permissions-Policy',
+    value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
   },
   {
-    key: "Content-Security-Policy-Report-Only",
+    key: 'Content-Security-Policy-Report-Only',
     value: [
       "default-src 'self'",
       // Next.js needs 'unsafe-inline' for its inline hydration script
@@ -43,13 +43,13 @@ const SECURITY_HEADERS = [
       // tiny inline assets.
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
-      // Supabase REST + realtime (WSS). All Meta API calls happen
-      // server-side, so graph.facebook.com does not belong here.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+      // Supabase REST + realtime (WSS). Includes the self-hosted instance
+      // at sslip.io. All Meta API calls happen server-side.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://amstago-supabase-12772e-31-97-235-19.sslip.io wss://amstago-supabase-12772e-31-97-235-19.sslip.io",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
-    ].join("; "),
+    ].join('; '),
   },
 ] as const;
 
@@ -94,25 +94,25 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/_next/static/:path*",
+        source: '/_next/static/:path*',
         headers: [
           {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
       {
-        source: "/api/:path*",
-        headers: [{ key: "Cache-Control", value: "no-store" }],
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'no-store' }],
       },
       {
-        source: "/:path*",
+        source: '/:path*',
         headers: [
           {
-            key: "Cache-Control",
+            key: 'Cache-Control',
             value:
-              "public, max-age=0, s-maxage=300, stale-while-revalidate=86400",
+              'public, max-age=0, s-maxage=300, stale-while-revalidate=86400',
           },
         ],
       },
@@ -120,7 +120,7 @@ const nextConfig: NextConfig = {
         // Security headers on every response, including /_next/static
         // assets (nosniff matters there) and /api/* (HSTS + referrer-
         // policy don't hurt).
-        source: "/:path*",
+        source: '/:path*',
         headers: [...SECURITY_HEADERS],
       },
     ];

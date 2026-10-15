@@ -133,7 +133,7 @@ export default function DashboardPage() {
               </span>
             </div>
             <h1 className="text-3xl font-extrabold tracking-tight text-white">
-              WhatsApp CRM <span className="text-neon-gradient">Intelligence</span>
+              Novacompass WhatsApp CRM <span className="text-neon-gradient">Intelligence</span>
             </h1>
             <p className="mt-1 text-sm text-slate-300">
               Live metrics across multi-channel inbox, contact lists, sales pipeline, broadcasts, and automation routines.
