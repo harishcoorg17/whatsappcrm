@@ -1,7 +1,6 @@
 'use client';
 
-export const dynamic = 'force-dynamic';
-
+import { Suspense } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { MessageSquare, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
@@ -28,7 +27,7 @@ interface SignupResult {
   phoneNumberId: string;
 }
 
-export default function OnboardingPage() {
+function OnboardingContent() {
   const params = useSearchParams();
   const tenantSlug = params.get('tenant') ?? '';
   const [step, setStep] = useState<Step>('idle');
@@ -113,6 +112,110 @@ export default function OnboardingPage() {
   };
 
   return (
+    <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+      {step === 'done' && result ? (
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/15">
+            <CheckCircle className="h-8 w-8 text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Connected!</h2>
+          <p className="text-sm text-slate-400">
+            WhatsApp Business linked to{' '}
+            <span className="font-mono text-white">/{tenantSlug}</span>
+          </p>
+          <div className="space-y-2 rounded-xl bg-slate-800/60 p-4 text-left text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">WABA ID</span>
+              <span className="font-mono text-xs text-white">
+                {result.wabaId}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">Phone Number ID</span>
+              <span className="font-mono text-xs text-white">
+                {result.phoneNumberId}
+              </span>
+            </div>
+          </div>
+          <a
+            href="/tenants"
+            className="bg-primary hover:bg-primary/90 block w-full rounded-lg px-4 py-2 text-center text-sm font-medium text-white transition-colors"
+          >
+            Back to Tenants
+          </a>
+        </div>
+      ) : step === 'error' ? (
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-red-500/30 bg-red-500/15">
+            <AlertCircle className="h-8 w-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Something went wrong</h2>
+          <p className="text-sm text-slate-400">{errorMsg}</p>
+          <Button
+            variant="outline"
+            onClick={() => setStep('idle')}
+            className="w-full"
+          >
+            Try Again
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-xl font-bold text-white">Connect WhatsApp</h2>
+            {tenantSlug && (
+              <p className="mt-1 text-sm text-slate-400">
+                Tenant:{' '}
+                <span className="font-mono text-white">/{tenantSlug}</span>
+              </p>
+            )}
+          </div>
+          <div className="space-y-3 text-sm text-slate-400">
+            <p>
+              Connect your WhatsApp Business Account via Meta&apos;s official
+              Embedded Signup flow.
+            </p>
+            <ul className="list-disc space-y-1.5 pl-4 marker:text-slate-600">
+              <li>Log in with your Facebook Business account</li>
+              <li>Select or create your WhatsApp Business Account</li>
+              <li>Verify your business phone number</li>
+              <li>Credentials are AES-256-GCM encrypted at rest</li>
+            </ul>
+          </div>
+          <Button
+            onClick={launchSignup}
+            disabled={
+              step === 'facebook' ||
+              step === 'saving' ||
+              !metaAppId ||
+              !metaConfigId
+            }
+            className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]"
+            size="lg"
+          >
+            {(step === 'facebook' || step === 'saving') && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            {step === 'saving'
+              ? 'Saving credentials…'
+              : step === 'facebook'
+                ? 'Waiting for Meta…'
+                : 'Continue with Facebook'}
+          </Button>
+          {!metaConfigId && (
+            <p className="text-center text-xs text-amber-500">
+              NEXT_PUBLIC_META_CONFIG_ID not set — requires Meta Tech Provider
+              approval.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
       <Toaster richColors />
       <div className="w-full max-w-md">
@@ -129,110 +232,17 @@ export default function OnboardingPage() {
             </p>
           </div>
         </div>
-
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
-          {step === 'done' && result ? (
-            <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/15">
-                <CheckCircle className="h-8 w-8 text-emerald-400" />
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               </div>
-              <h2 className="text-xl font-bold text-white">Connected!</h2>
-              <p className="text-sm text-slate-400">
-                WhatsApp Business linked to{' '}
-                <span className="font-mono text-white">/{tenantSlug}</span>
-              </p>
-              <div className="space-y-2 rounded-xl bg-slate-800/60 p-4 text-left text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-400">WABA ID</span>
-                  <span className="font-mono text-xs text-white">
-                    {result.wabaId}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-400">Phone Number ID</span>
-                  <span className="font-mono text-xs text-white">
-                    {result.phoneNumberId}
-                  </span>
-                </div>
-              </div>
-              <a
-                href="/tenants"
-                className="bg-primary hover:bg-primary/90 block w-full rounded-lg px-4 py-2 text-center text-sm font-medium text-white transition-colors"
-              >
-                Back to Tenants
-              </a>
             </div>
-          ) : step === 'error' ? (
-            <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-red-500/30 bg-red-500/15">
-                <AlertCircle className="h-8 w-8 text-red-400" />
-              </div>
-              <h2 className="text-xl font-bold text-white">
-                Something went wrong
-              </h2>
-              <p className="text-sm text-slate-400">{errorMsg}</p>
-              <Button
-                variant="outline"
-                onClick={() => setStep('idle')}
-                className="w-full"
-              >
-                Try Again
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-5">
-              <div>
-                <h2 className="text-xl font-bold text-white">
-                  Connect WhatsApp
-                </h2>
-                {tenantSlug && (
-                  <p className="mt-1 text-sm text-slate-400">
-                    Tenant:{' '}
-                    <span className="font-mono text-white">/{tenantSlug}</span>
-                  </p>
-                )}
-              </div>
-              <div className="space-y-3 text-sm text-slate-400">
-                <p>
-                  Connect your WhatsApp Business Account via Meta's official
-                  Embedded Signup flow.
-                </p>
-                <ul className="list-disc space-y-1.5 pl-4 marker:text-slate-600">
-                  <li>Log in with your Facebook Business account</li>
-                  <li>Select or create your WhatsApp Business Account</li>
-                  <li>Verify your business phone number</li>
-                  <li>Credentials are AES-256-GCM encrypted at rest</li>
-                </ul>
-              </div>
-              <Button
-                onClick={launchSignup}
-                disabled={
-                  step === 'facebook' ||
-                  step === 'saving' ||
-                  !metaAppId ||
-                  !metaConfigId
-                }
-                className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]"
-                size="lg"
-              >
-                {(step === 'facebook' || step === 'saving') && (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                )}
-                {step === 'saving'
-                  ? 'Saving credentials…'
-                  : step === 'facebook'
-                    ? 'Waiting for Meta…'
-                    : 'Continue with Facebook'}
-              </Button>
-              {!metaConfigId && (
-                <p className="text-center text-xs text-amber-500">
-                  NEXT_PUBLIC_META_CONFIG_ID not set — requires Meta Tech
-                  Provider approval.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+          }
+        >
+          <OnboardingContent />
+        </Suspense>
       </div>
     </div>
   );
