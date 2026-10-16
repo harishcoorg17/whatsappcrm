@@ -77,6 +77,12 @@ function OnboardingContent() {
             return;
           }
           setStep('saving');
+          // sessionInfoVersion:'3' populates session_info with wabaId +
+          // phoneNumberId so the backend doesn't need to call the Graph API.
+          const sessionInfo = (response.authResponse as Record<string, unknown>)
+            .session_info as
+            | { waba_id?: string; phone_number_id?: string }
+            | undefined;
           try {
             const res = await fetch('/api/whatsapp/embedded-signup', {
               method: 'POST',
@@ -84,6 +90,8 @@ function OnboardingContent() {
               body: JSON.stringify({
                 code: response.authResponse.code,
                 tenantSlug,
+                wabaId: sessionInfo?.waba_id,
+                phoneNumberId: sessionInfo?.phone_number_id,
               }),
             });
             const data = await res.json();
