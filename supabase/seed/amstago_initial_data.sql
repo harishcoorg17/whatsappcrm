@@ -9,8 +9,9 @@
 
 DO $$
 DECLARE
-  v_user_id   UUID := 'dab74467-0e12-470c-98d0-ead84eb5b22a';
-  v_tenant_id UUID := '666ef1b8-8462-499f-b577-2f849602718f';
+  v_user_id      UUID := 'dab74467-0e12-470c-98d0-ead84eb5b22a';
+  v_tenant_id    UUID := '666ef1b8-8462-499f-b577-2f849602718f'; -- crm_tenants (pipelines/automations/flows)
+  v_wa_tenant_id UUID := '00000000-0000-0000-0000-000000000001'; -- tenants table (broadcasts, whatsappagent)
 
   -- Pipeline IDs (stable so this script is idempotent)
   v_pipeline_leads  UUID := 'aaaaaaaa-0001-0000-0000-000000000001';
@@ -65,8 +66,14 @@ ON CONFLICT DO NOTHING;
 -- 2. AUTOMATIONS
 -- =============================================================
 
+-- NOTE: migration 023_fix_schema_gaps.sql uses:
+--   automations.enabled (not is_active)
+--   automations.last_triggered (not last_executed_at)
+--   automation_steps.type (not step_type)
+--   automation_steps.config (not step_config)
+
 -- 2a. Welcome on first inbound message
-INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, is_active)
+INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, enabled)
 VALUES (
   v_auto_welcome,
   v_user_id,
@@ -78,7 +85,7 @@ VALUES (
   true
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO automation_steps (automation_id, step_type, step_config, position) VALUES
+INSERT INTO automation_steps (automation_id, type, config, position) VALUES
   (v_auto_welcome, 'send_template', '{
     "template_name": "amstago_welcome",
     "template_language": "en",
@@ -88,7 +95,7 @@ INSERT INTO automation_steps (automation_id, step_type, step_config, position) V
 ON CONFLICT DO NOTHING;
 
 -- 2b. Tour inquiry keyword auto-reply
-INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, is_active)
+INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, enabled)
 VALUES (
   v_auto_keywords,
   v_user_id,
@@ -103,7 +110,7 @@ VALUES (
   true
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO automation_steps (automation_id, step_type, step_config, position) VALUES
+INSERT INTO automation_steps (automation_id, type, config, position) VALUES
   (v_auto_keywords, 'send_message', '{
     "message": "Hi! 👋 Thanks for reaching out to Amstago Travel.\n\nWe offer handcrafted tour packages across India and beyond:\n\n🏔️ *Adventure Tours* — Himalayas, North-East, Ladakh\n🏖️ *Beach Escapes* — Goa, Kerala, Andaman\n🕌 *Heritage Trails* — Rajasthan, Tamil Nadu\n✈️ *International Packages* — Bali, Thailand, Europe\n\nReply with your destination interest and our team will get back to you shortly!"
   }'::jsonb, 0),
@@ -111,7 +118,7 @@ INSERT INTO automation_steps (automation_id, step_type, step_config, position) V
 ON CONFLICT DO NOTHING;
 
 -- 2c. Auto-tag new contacts
-INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, is_active)
+INSERT INTO automations (id, user_id, tenant_id, name, description, trigger_type, trigger_config, enabled)
 VALUES (
   v_auto_newtag,
   v_user_id,
@@ -123,56 +130,54 @@ VALUES (
   true
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO automation_steps (automation_id, step_type, step_config, position) VALUES
+INSERT INTO automation_steps (automation_id, type, config, position) VALUES
   (v_auto_newtag, 'add_tag', '{"tag": "Lead"}'::jsonb, 0)
 ON CONFLICT DO NOTHING;
 
 -- =============================================================
 -- 3. BROADCASTS (drafts — schedule or send from the UI)
+-- Live schema: id, tenant_id, template_id(opt), name, target_type,
+--   target_tags[], target_phones[], status, total_count, sent_count,
+--   delivered_count, failed_count, total_recipients, scheduled_at,
+--   started_at, completed_at, error_message, created_at, updated_at
 -- =============================================================
 
-INSERT INTO broadcasts (id, user_id, tenant_id, name, template_name, template_language, status)
+INSERT INTO broadcasts (id, tenant_id, name, target_type, target_tags, target_phones, status,
+                        total_count, sent_count, delivered_count, failed_count, total_recipients)
 VALUES (
-  v_bcast_welcome,
-  v_user_id,
-  v_tenant_id,
+  v_bcast_welcome, v_wa_tenant_id,
   'Welcome Campaign — All Contacts',
-  'amstago_welcome',
-  'en',
-  'draft'
+  'all', '{}', '{}', 'draft', 0, 0, 0, 0, 0
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO broadcasts (id, user_id, tenant_id, name, template_name, template_language, status)
+INSERT INTO broadcasts (id, tenant_id, name, target_type, target_tags, target_phones, status,
+                        total_count, sent_count, delivered_count, failed_count, total_recipients)
 VALUES (
-  v_bcast_offer,
-  v_user_id,
-  v_tenant_id,
+  v_bcast_offer, v_wa_tenant_id,
   'Special Offer — Early Bird 2027',
-  'amstago_special_offer',
-  'en',
-  'draft'
+  'all', '{}', '{}', 'draft', 0, 0, 0, 0, 0
 ) ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO broadcasts (id, user_id, tenant_id, name, template_name, template_language, status)
+INSERT INTO broadcasts (id, tenant_id, name, target_type, target_tags, target_phones, status,
+                        total_count, sent_count, delivered_count, failed_count, total_recipients)
 VALUES (
-  v_bcast_seasonal,
-  v_user_id,
-  v_tenant_id,
+  v_bcast_seasonal, v_wa_tenant_id,
   'Seasonal Promo — Festive Getaways',
-  'amstago_special_offer',
-  'en',
-  'draft'
+  'all', '{}', '{}', 'draft', 0, 0, 0, 0, 0
 ) ON CONFLICT (id) DO NOTHING;
 
 -- =============================================================
--- 4. FLOWS
+-- 4. FLOWS (skipped if migration 010_flows.sql hasn't been run)
 -- =============================================================
 
-INSERT INTO flows (id, user_id, tenant_id, name, description, status, trigger_type, trigger_config, entry_node_id)
+IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='flows') THEN
+  RAISE NOTICE 'flows table not found — skipping flow inserts. Run migration 010_flows.sql first.';
+ELSE
+
+INSERT INTO flows (id, user_id, name, description, status, trigger_type, trigger_config, entry_node_id)
 VALUES (
   v_flow_inquiry,
   v_user_id,
-  v_tenant_id,
   'Tour Inquiry Flow',
   'Qualifies every new lead — collects destination, travel dates, and group size, then hands off to the inbox.',
   'draft',
@@ -244,6 +249,8 @@ INSERT INTO flow_nodes (flow_id, node_key, node_type, config, position_x, positi
   (v_flow_inquiry, 'end', 'end', '{}'::jsonb, 0, 700)
 
 ON CONFLICT DO NOTHING;
+
+END IF; -- flows table existence check
 
 RAISE NOTICE '✅  Amstago initial CRM data inserted.';
 RAISE NOTICE '   Pipelines:    Tour Leads (6 stages), Group Trips (6 stages)';
