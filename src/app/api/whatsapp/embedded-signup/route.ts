@@ -57,6 +57,20 @@ export async function POST(req: NextRequest) {
   }
   const shortToken: string = tokenData.access_token;
 
+  // Upgrade the short-lived user token (~1 h) to a long-lived token (60 days)
+  // so stored credentials don't expire immediately after onboarding.
+  let longToken = shortToken;
+  try {
+    const llRes = await fetch(
+      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`,
+      { cache: 'no-store' }
+    );
+    const llData = await llRes.json();
+    if (llData.access_token) longToken = llData.access_token as string;
+  } catch {
+    // fall back to short-lived token
+  }
+
   // ES v4: WABA/phone IDs come via postMessage (frontend) or session_info.
   // Fallback: discover from Graph API using the short-lived token so the flow
   // succeeds even when the postMessage event is dropped or delayed.
@@ -97,7 +111,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Encrypt token and persist
-  const encryptedToken = await encrypt(shortToken);
+  const encryptedToken = await encrypt(longToken);
   const db = supabaseAdmin();
   const { error: dbError } = await db
     .from('crm_tenants')
