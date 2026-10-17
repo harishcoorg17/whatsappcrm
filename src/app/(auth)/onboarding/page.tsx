@@ -20,7 +20,14 @@ declare global {
   }
 }
 
-type Step = 'idle' | 'facebook' | 'saving' | 'done' | 'error';
+type Step =
+  | 'idle'
+  | 'facebook'
+  | 'saving'
+  | 'done'
+  | 'error'
+  | 'manual'
+  | 'saving_manual';
 
 interface SignupResult {
   wabaId: string;
@@ -43,6 +50,12 @@ function OnboardingContent() {
   const fbLoaded = useRef(false);
   // Captures WABA/phone IDs from the ES v4 postMessage event.
   const esData = useRef<{ waba_id?: string; phone_number_id?: string }>({});
+  // Manual credentials form state (fallback when META_CONFIG_ID is absent)
+  const [manualFields, setManualFields] = useState({
+    wabaId: '',
+    phoneNumberId: '',
+    accessToken: '',
+  });
 
   const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID ?? '';
   const metaConfigId = process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '';
@@ -95,6 +108,37 @@ function OnboardingContent() {
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
   }, []);
+
+  const saveManual = async () => {
+    const { wabaId, phoneNumberId, accessToken } = manualFields;
+    if (!wabaId.trim() || !phoneNumberId.trim() || !accessToken.trim()) {
+      toast.error('All three fields are required');
+      return;
+    }
+    setStep('saving_manual');
+    try {
+      const res = await fetch('/api/whatsapp/embedded-signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantSlug,
+          wabaId: wabaId.trim(),
+          phoneNumberId: phoneNumberId.trim(),
+          accessToken: accessToken.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Unknown error');
+      setResult({ wabaId: wabaId.trim(), phoneNumberId: phoneNumberId.trim() });
+      setStep('done');
+      toast.success('WhatsApp Business connected!');
+    } catch (e: unknown) {
+      setErrorMsg(
+        e instanceof Error ? e.message : 'Failed to save credentials'
+      );
+      setStep('error');
+    }
+  };
 
   const launchSignup = () => {
     if (!window.FB) {
@@ -218,7 +262,101 @@ function OnboardingContent() {
             Try Again
           </Button>
         </div>
+      ) : !metaConfigId || step === 'manual' ? (
+        /* ── Manual credentials form (no META_CONFIG_ID or explicit fallback) ── */
+        <div className="space-y-5">
+          <div>
+            <h2 className="text-xl font-bold text-white">Connect WhatsApp</h2>
+            {tenantSlug && (
+              <p className="mt-1 text-sm text-slate-400">
+                Tenant:{' '}
+                <span className="font-mono text-white">/{tenantSlug}</span>
+              </p>
+            )}
+          </div>
+          <p className="text-sm text-slate-400">
+            Paste your credentials from{' '}
+            <span className="text-white">
+              Meta Business Manager → WhatsApp → API Setup
+            </span>
+            .
+          </p>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm text-slate-300">
+                WABA ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={manualFields.wabaId}
+                onChange={(e) =>
+                  setManualFields((f) => ({ ...f, wabaId: e.target.value }))
+                }
+                placeholder="e.g. 123456789012345"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:border-slate-500 focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm text-slate-300">
+                Phone Number ID <span className="text-red-400">*</span>
+              </label>
+              <input
+                value={manualFields.phoneNumberId}
+                onChange={(e) =>
+                  setManualFields((f) => ({
+                    ...f,
+                    phoneNumberId: e.target.value,
+                  }))
+                }
+                placeholder="e.g. 987654321098765"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:border-slate-500 focus:outline-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm text-slate-300">
+                System User Access Token <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="password"
+                value={manualFields.accessToken}
+                onChange={(e) =>
+                  setManualFields((f) => ({
+                    ...f,
+                    accessToken: e.target.value,
+                  }))
+                }
+                placeholder="EAAxxxxxxxx…"
+                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm text-white placeholder-slate-500 focus:border-slate-500 focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-500">
+                Meta Business Manager → Settings → System Users → Generate Token
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={saveManual}
+            disabled={step === 'saving_manual'}
+            className="w-full gap-2"
+            size="lg"
+          >
+            {step === 'saving_manual' && (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            )}
+            {step === 'saving_manual' ? 'Saving…' : 'Save Credentials'}
+          </Button>
+          {metaAppId && metaConfigId === '' && (
+            <p className="text-center text-xs text-slate-500">
+              Want the guided Meta wizard?{' '}
+              <button
+                onClick={() => setStep('idle')}
+                className="text-slate-400 underline hover:text-white"
+              >
+                Use Embedded Signup instead
+              </button>
+            </p>
+          )}
+        </div>
       ) : (
+        /* ── ES wizard (META_CONFIG_ID is set) ── */
         <div className="space-y-5">
           <div>
             <h2 className="text-xl font-bold text-white">Connect WhatsApp</h2>
@@ -243,12 +381,7 @@ function OnboardingContent() {
           </div>
           <Button
             onClick={launchSignup}
-            disabled={
-              step === 'facebook' ||
-              step === 'saving' ||
-              !metaAppId ||
-              !metaConfigId
-            }
+            disabled={step === 'facebook' || step === 'saving' || !metaAppId}
             className="w-full gap-2 bg-[#1877F2] text-white hover:bg-[#166FE5]"
             size="lg"
           >
@@ -261,12 +394,15 @@ function OnboardingContent() {
                 ? 'Waiting for Meta…'
                 : 'Continue with Facebook'}
           </Button>
-          {!metaConfigId && (
-            <p className="text-center text-xs text-amber-500">
-              NEXT_PUBLIC_META_CONFIG_ID not set — requires Meta Tech Provider
-              approval.
-            </p>
-          )}
+          <p className="text-center text-xs text-slate-500">
+            Don&apos;t have Meta Tech Provider access?{' '}
+            <button
+              onClick={() => setStep('manual')}
+              className="text-slate-400 underline hover:text-white"
+            >
+              Enter credentials manually
+            </button>
+          </p>
         </div>
       )}
     </div>
