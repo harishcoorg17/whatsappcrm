@@ -27,6 +27,13 @@ interface SignupResult {
   phoneNumberId: string;
 }
 
+// ES v4 sends WABA/phone IDs via postMessage before the FB.login callback fires.
+interface EsMessageData {
+  type: string;
+  event: string;
+  data?: { waba_id?: string; phone_number_id?: string };
+}
+
 function OnboardingContent() {
   const params = useSearchParams();
   const tenantSlug = params.get('tenant') ?? '';
@@ -34,6 +41,8 @@ function OnboardingContent() {
   const [result, setResult] = useState<SignupResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const fbLoaded = useRef(false);
+  // Captures WABA/phone IDs from the ES v4 postMessage event.
+  const esData = useRef<{ waba_id?: string; phone_number_id?: string }>({});
 
   const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID ?? '';
   const metaConfigId = process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '';
@@ -57,6 +66,31 @@ function OnboardingContent() {
     document.body.appendChild(s);
   }, [metaAppId]);
 
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.origin !== 'https://www.facebook.com') return;
+      try {
+        const msg = (
+          typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        ) as EsMessageData;
+        if (
+          msg.type === 'WA_EMBEDDED_SIGNUP' &&
+          msg.event === 'FINISH' &&
+          msg.data
+        ) {
+          esData.current = {
+            waba_id: msg.data.waba_id,
+            phone_number_id: msg.data.phone_number_id,
+          };
+        }
+      } catch {
+        // ignore non-JSON messages
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const launchSignup = () => {
     if (!window.FB) {
       toast.error('Facebook SDK not ready — please wait a moment');
@@ -67,6 +101,7 @@ function OnboardingContent() {
       return;
     }
     setStep('facebook');
+    esData.current = {};
 
     window.FB.login(
       (response) => {
@@ -77,12 +112,18 @@ function OnboardingContent() {
             return;
           }
           setStep('saving');
-          // sessionInfoVersion:'3' populates session_info with wabaId +
-          // phoneNumberId so the backend doesn't need to call the Graph API.
+
+          // ES v4: WABA/phone IDs come from the postMessage event (esData.current).
+          // ES v3 fallback: they come from session_info in the authResponse.
           const sessionInfo = (response.authResponse as Record<string, unknown>)
             .session_info as
             | { waba_id?: string; phone_number_id?: string }
             | undefined;
+
+          const wabaId = esData.current.waba_id ?? sessionInfo?.waba_id;
+          const phoneNumberId =
+            esData.current.phone_number_id ?? sessionInfo?.phone_number_id;
+
           try {
             const res = await fetch('/api/whatsapp/embedded-signup', {
               method: 'POST',
@@ -90,8 +131,8 @@ function OnboardingContent() {
               body: JSON.stringify({
                 code: response.authResponse.code,
                 tenantSlug,
-                wabaId: sessionInfo?.waba_id,
-                phoneNumberId: sessionInfo?.phone_number_id,
+                wabaId,
+                phoneNumberId,
               }),
             });
             const data = await res.json();
