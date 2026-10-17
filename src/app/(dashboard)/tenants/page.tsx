@@ -261,6 +261,10 @@ export default function TenantsPage() {
                       <span className="text-xs text-slate-500">
                         WABA: {t.waba_id}
                       </span>
+                    ) : t.status === 'active' ? (
+                      <span className="text-xs text-sky-400">
+                        Connected — set WABA credentials
+                      </span>
                     ) : (
                       <span className="text-xs text-amber-500">
                         WhatsApp not connected
