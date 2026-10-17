@@ -44,6 +44,15 @@ const STATUS_ICONS = {
   pending: Clock,
 };
 
+interface EditCreds {
+  tenantId: string;
+  tenantSlug: string;
+  tenantName: string;
+  wabaId: string;
+  phoneNumberId: string;
+  accessToken: string;
+}
+
 export default function TenantsPage() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +60,8 @@ export default function TenantsPage() {
   const [showNew, setShowNew] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', plan: 'starter' });
   const [saving, setSaving] = useState(false);
+  const [editCreds, setEditCreds] = useState<EditCreds | null>(null);
+  const [savingCreds, setSavingCreds] = useState(false);
   const supabase = createClient();
 
   const load = useCallback(async () => {
@@ -93,6 +104,71 @@ export default function TenantsPage() {
     setShowNew(false);
     setForm({ name: '', slug: '', plan: 'starter' });
     load();
+  };
+
+  const openEditCreds = (t: Tenant) => {
+    setEditCreds({
+      tenantId: t.id,
+      tenantSlug: t.slug,
+      tenantName: t.name,
+      wabaId: t.waba_id ?? '',
+      phoneNumberId: t.phone_number_id ?? '',
+      accessToken: '',
+    });
+  };
+
+  const saveCredentials = async () => {
+    if (!editCreds) return;
+    if (!editCreds.wabaId.trim() || !editCreds.phoneNumberId.trim()) {
+      toast.error('WABA ID and Phone Number ID are required');
+      return;
+    }
+    setSavingCreds(true);
+    try {
+      // If an access token is provided, route through the ES API so it gets
+      // encrypted and owner_user_id is captured. Otherwise just update the IDs.
+      if (editCreds.accessToken.trim()) {
+        const res = await fetch('/api/whatsapp/embedded-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code: null,
+            tenantSlug: editCreds.tenantSlug,
+            wabaId: editCreds.wabaId.trim(),
+            phoneNumberId: editCreds.phoneNumberId.trim(),
+            accessToken: editCreds.accessToken.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          // Fall through to direct DB update if the API fails
+          console.warn('ES API failed, updating directly:', data.error);
+        } else {
+          toast.success('Credentials saved and encrypted');
+          setEditCreds(null);
+          load();
+          return;
+        }
+      }
+      // Direct update for waba_id / phone_number_id without token
+      const { error } = await supabase
+        .from('crm_tenants')
+        .update({
+          waba_id: editCreds.wabaId.trim(),
+          phone_number_id: editCreds.phoneNumberId.trim(),
+          status: 'active',
+        })
+        .eq('id', editCreds.tenantId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      toast.success('Credentials updated');
+      setEditCreds(null);
+      load();
+    } finally {
+      setSavingCreds(false);
+    }
   };
 
   const toggleStatus = async (t: Tenant) => {
@@ -196,6 +272,12 @@ export default function TenantsPage() {
                   </div>
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-2">
+                  <button
+                    onClick={() => openEditCreds(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    {t.waba_id ? 'Edit credentials' : 'Set credentials'}
+                  </button>
                   <a
                     href={`/onboarding?tenant=${t.slug}`}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
@@ -219,6 +301,64 @@ export default function TenantsPage() {
           })}
         </div>
       )}
+
+      {/* Edit credentials dialog */}
+      <Dialog open={!!editCreds} onOpenChange={(open) => { if (!open) setEditCreds(null); }}>
+        <DialogContent className="max-w-md border-slate-800 bg-slate-950 text-white">
+          <DialogHeader>
+            <DialogTitle>WhatsApp Credentials — {editCreds?.tenantName}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-slate-400 -mt-2">
+            Paste your WABA ID and Phone Number ID from Meta Business Manager.
+            Optionally paste a System User access token to store it encrypted.
+          </p>
+          <div className="mt-2 space-y-4">
+            <div className="space-y-1.5">
+              <Label>WABA ID <span className="text-red-400">*</span></Label>
+              <Input
+                value={editCreds?.wabaId ?? ''}
+                onChange={(e) => setEditCreds((c) => c ? { ...c, wabaId: e.target.value } : c)}
+                placeholder="e.g. 123456789012345"
+                className="border-slate-700 bg-slate-900 font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone Number ID <span className="text-red-400">*</span></Label>
+              <Input
+                value={editCreds?.phoneNumberId ?? ''}
+                onChange={(e) => setEditCreds((c) => c ? { ...c, phoneNumberId: e.target.value } : c)}
+                placeholder="e.g. 987654321098765"
+                className="border-slate-700 bg-slate-900 font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>
+                System User Access Token{' '}
+                <span className="text-xs text-slate-500">(optional — stored encrypted)</span>
+              </Label>
+              <Input
+                type="password"
+                value={editCreds?.accessToken ?? ''}
+                onChange={(e) => setEditCreds((c) => c ? { ...c, accessToken: e.target.value } : c)}
+                placeholder="EAAxxxxxxxx…"
+                className="border-slate-700 bg-slate-900 font-mono text-sm"
+              />
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Get this from Meta Business Manager → Settings → System Users →
+                Generate Token. Leave blank to keep the existing stored token.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="ghost" onClick={() => setEditCreds(null)} disabled={savingCreds}>
+                Cancel
+              </Button>
+              <Button onClick={saveCredentials} disabled={savingCreds}>
+                {savingCreds ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showNew} onOpenChange={setShowNew}>
         <DialogContent className="max-w-md border-slate-800 bg-slate-950 text-white">
