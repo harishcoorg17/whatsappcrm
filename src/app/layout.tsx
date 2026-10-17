@@ -39,6 +39,9 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  other: {
+    'facebook-domain-verification': 'g239sq4sg2aqss4epsk5hwwuaqt87a',
+  },
 };
 
 export const viewport: Viewport = {
