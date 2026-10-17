@@ -57,18 +57,40 @@ export async function POST(req: NextRequest) {
   }
   const shortToken: string = tokenData.access_token;
 
-  // With sessionInfoVersion:'3' the frontend SDK callback includes waba_id
-  // and phone_number_id in session_info — use those directly. Calling
-  // me/whatsapp_business_accounts requires whatsapp_business_management
-  // permission which may not be granted yet in Development mode.
-  const wabaId: string = wabaIdFromSession ?? '';
-  const phoneNumberId: string = phoneNumberIdFromSession ?? '';
+  // ES v4: WABA/phone IDs come via postMessage (frontend) or session_info.
+  // Fallback: discover from Graph API using the short-lived token so the flow
+  // succeeds even when the postMessage event is dropped or delayed.
+  let wabaId: string = wabaIdFromSession ?? '';
+  let phoneNumberId: string = phoneNumberIdFromSession ?? '';
+
+  if (!wabaId) {
+    try {
+      const bizRes = await fetch(
+        'https://graph.facebook.com/v21.0/me/businesses?fields=whatsapp_business_accounts.limit(5){id,phone_numbers.limit(5){id}}&limit=5',
+        {
+          headers: { Authorization: `Bearer ${shortToken}` },
+          cache: 'no-store',
+        }
+      );
+      const bizData = await bizRes.json();
+      const firstWaba =
+        bizData?.data?.[0]?.whatsapp_business_accounts?.data?.[0];
+      if (firstWaba?.id) {
+        wabaId = firstWaba.id as string;
+        if (!phoneNumberId && firstWaba.phone_numbers?.data?.[0]?.id) {
+          phoneNumberId = firstWaba.phone_numbers.data[0].id as string;
+        }
+      }
+    } catch {
+      // discovery failed — fall through to the 400 below
+    }
+  }
 
   if (!wabaId) {
     return NextResponse.json(
       {
         error:
-          'No WABA ID returned from session info — ensure sessionInfoVersion:3 is set in FB.login extras',
+          'Could not determine WABA ID — complete the WhatsApp Business signup and try again',
       },
       { status: 400 }
     );

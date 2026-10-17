@@ -68,7 +68,12 @@ function OnboardingContent() {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      if (event.origin !== 'https://www.facebook.com') return;
+      // Meta uses several subdomains (www, web, static.xx.fbcdn.net, etc.)
+      if (
+        !event.origin.includes('facebook.com') &&
+        !event.origin.includes('fbcdn.net')
+      )
+        return;
       try {
         const msg = (
           typeof event.data === 'string' ? JSON.parse(event.data) : event.data
