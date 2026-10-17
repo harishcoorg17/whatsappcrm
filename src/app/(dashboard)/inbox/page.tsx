@@ -126,24 +126,23 @@ export default function InboxPage() {
     }
   }, []);
 
-  // Check WhatsApp connection status on mount
+  // Check WhatsApp connection status — runs on mount and re-runs whenever
+  // crm_tenants changes (so the banner dismisses immediately after ES flow).
   useEffect(() => {
+    const supabase = createClient();
+
     const checkConnection = async () => {
-      const supabase = createClient();
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      const user = session?.user;
+      if (!session?.user) return;
 
-      if (!user) return;
-
-      // Check crm_tenants for any active, fully-connected tenant.
-      // whatsapp_config is legacy and may not exist in all deployments.
+      // Any active tenant = connected. Don't filter by waba_id — ES v4 may
+      // set status='active' before waba_id is fully populated.
       const { data: tenant } = await supabase
         .from('crm_tenants')
         .select('id')
         .eq('status', 'active')
-        .not('waba_id', 'is', null)
         .limit(1)
         .maybeSingle();
 
@@ -152,17 +151,36 @@ export default function InboxPage() {
         return;
       }
 
-      // Fallback: whatsapp_config (legacy single-tenant installs)
+      // Fallback: whatsapp_config (legacy single-tenant installs).
+      // Supabase returns an error when the table doesn't exist — treat
+      // that the same as "no row found" rather than crashing the check.
       const { data: cfg } = await supabase
         .from('whatsapp_config')
         .select('status')
-        .eq('user_id', user.id)
+        .eq('user_id', session.user.id)
         .maybeSingle();
 
       setWhatsappConnected(cfg?.status === 'connected');
     };
 
     checkConnection();
+
+    // Re-check whenever any tenant row changes so the banner dismisses
+    // immediately after the user completes the onboarding ES flow.
+    const channel = supabase
+      .channel('crm_tenants_connection')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'crm_tenants' },
+        () => {
+          checkConnection();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, []);
 
   // Handle realtime message events
