@@ -68,7 +68,8 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
-  const { tenants, selectedTenant, selectedTenantId, setSelectedTenantId } = useTenant();
+  const { tenants, selectedTenant, selectedTenantId, setSelectedTenantId } =
+    useTenant();
   const totalUnread = useTotalUnread();
 
   // Close the drawer when route changes — users opened it to navigate,
@@ -167,7 +168,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   onClick={() => setSelectedTenantId(null)}
                   className="gap-2 text-slate-300 focus:bg-slate-800 focus:text-white"
                 >
-                  {!selectedTenantId && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {!selectedTenantId && (
+                    <Check className="text-primary h-3.5 w-3.5" />
+                  )}
                   {selectedTenantId && <span className="h-3.5 w-3.5" />}
                   All Tenants
                 </DropdownMenuItem>
@@ -178,8 +181,12 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     onClick={() => setSelectedTenantId(t.id)}
                     className="gap-2 text-slate-300 focus:bg-slate-800 focus:text-white"
                   >
-                    {selectedTenantId === t.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                    {selectedTenantId !== t.id && <span className="h-3.5 w-3.5" />}
+                    {selectedTenantId === t.id && (
+                      <Check className="text-primary h-3.5 w-3.5" />
+                    )}
+                    {selectedTenantId !== t.id && (
+                      <span className="h-3.5 w-3.5" />
+                    )}
                     <span className="flex-1 truncate">{t.name}</span>
                     {t.status === 'active' && (
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />

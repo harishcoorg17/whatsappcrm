@@ -49,15 +49,24 @@ BEGIN
 END $$;
 
 -- ── 5. Relax whatsapp_config UNIQUE(user_id) ────────────────────────────────
--- Original schema: one config per user. Multi-tenant: one admin manages many
--- tenants. phone_number_id already has UNIQUE from migration 013.
-ALTER TABLE whatsapp_config
-  DROP CONSTRAINT IF EXISTS whatsapp_config_user_id_key;
+-- Guarded: table may not exist if the project uses crm_tenants exclusively.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'whatsapp_config'
+  ) THEN
+    ALTER TABLE whatsapp_config DROP CONSTRAINT IF EXISTS whatsapp_config_user_id_key;
+  END IF;
+END $$;
 
 -- ── 6. tenant_id on whatsapp_config ─────────────────────────────────────────
 DO $$
 BEGIN
-  IF NOT EXISTS (
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'whatsapp_config'
+  ) AND NOT EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'whatsapp_config' AND column_name = 'tenant_id'
   ) THEN

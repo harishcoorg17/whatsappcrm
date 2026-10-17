@@ -20,7 +20,9 @@ export async function POST(req: NextRequest) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { cookies: { getAll: () => req.cookies.getAll() } }
     );
-    const { data: { user } } = await userClient.auth.getUser();
+    const {
+      data: { user },
+    } = await userClient.auth.getUser();
     ownerUserId = user?.id ?? null;
   } catch {
     // non-fatal — webhook routing will still work once owner_user_id is set manually

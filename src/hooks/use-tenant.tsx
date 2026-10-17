@@ -71,7 +71,13 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <TenantContext.Provider
-      value={{ tenants, selectedTenantId, selectedTenant, setSelectedTenantId, loading }}
+      value={{
+        tenants,
+        selectedTenantId,
+        selectedTenant,
+        setSelectedTenantId,
+        loading,
+      }}
     >
       {children}
     </TenantContext.Provider>
