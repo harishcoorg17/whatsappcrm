@@ -34,20 +34,54 @@ export async function POST(req: NextRequest) {
     tenantSlug,
     wabaId: wabaIdFromSession,
     phoneNumberId: phoneNumberIdFromSession,
+    accessToken: directToken,
   } = body as {
-    code?: string;
+    code?: string | null;
     tenantSlug?: string;
     wabaId?: string;
     phoneNumberId?: string;
+    /** Raw System User token — skips OAuth code exchange entirely. */
+    accessToken?: string;
   };
 
-  if (!code)
-    return NextResponse.json({ error: 'code is required' }, { status: 400 });
   if (!tenantSlug)
     return NextResponse.json(
       { error: 'tenantSlug is required' },
       { status: 400 }
     );
+
+  // ── Direct token path (manual credentials form in Tenants page) ─────────
+  // When the caller provides a raw access token (System User token), skip the
+  // OAuth exchange entirely and encrypt + store it directly.
+  if (directToken && !code) {
+    const wabaId = wabaIdFromSession?.trim() ?? '';
+    const phoneNumberId = phoneNumberIdFromSession?.trim() ?? '';
+    if (!wabaId || !phoneNumberId) {
+      return NextResponse.json(
+        { error: 'wabaId and phoneNumberId are required with a direct token' },
+        { status: 400 }
+      );
+    }
+    const encryptedToken = await encrypt(directToken.trim());
+    const db = supabaseAdmin();
+    const { error: dbError } = await db
+      .from('crm_tenants')
+      .update({
+        waba_id: wabaId,
+        phone_number_id: phoneNumberId,
+        access_token_enc: encryptedToken,
+        status: 'active',
+        ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
+      })
+      .eq('slug', tenantSlug);
+    if (dbError)
+      return NextResponse.json({ error: dbError.message }, { status: 500 });
+    return NextResponse.json({ wabaId, phoneNumberId });
+  }
+
+  // ── ES OAuth code path ───────────────────────────────────────────────────
+  if (!code)
+    return NextResponse.json({ error: 'code is required' }, { status: 400 });
 
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;

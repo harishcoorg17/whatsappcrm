@@ -303,30 +303,49 @@ export default function TenantsPage() {
       )}
 
       {/* Edit credentials dialog */}
-      <Dialog open={!!editCreds} onOpenChange={(open) => { if (!open) setEditCreds(null); }}>
+      <Dialog
+        open={!!editCreds}
+        onOpenChange={(open) => {
+          if (!open) setEditCreds(null);
+        }}
+      >
         <DialogContent className="max-w-md border-slate-800 bg-slate-950 text-white">
           <DialogHeader>
-            <DialogTitle>WhatsApp Credentials — {editCreds?.tenantName}</DialogTitle>
+            <DialogTitle>
+              WhatsApp Credentials — {editCreds?.tenantName}
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-slate-400 -mt-2">
+          <p className="-mt-2 text-xs text-slate-400">
             Paste your WABA ID and Phone Number ID from Meta Business Manager.
             Optionally paste a System User access token to store it encrypted.
           </p>
           <div className="mt-2 space-y-4">
             <div className="space-y-1.5">
-              <Label>WABA ID <span className="text-red-400">*</span></Label>
+              <Label>
+                WABA ID <span className="text-red-400">*</span>
+              </Label>
               <Input
                 value={editCreds?.wabaId ?? ''}
-                onChange={(e) => setEditCreds((c) => c ? { ...c, wabaId: e.target.value } : c)}
+                onChange={(e) =>
+                  setEditCreds((c) =>
+                    c ? { ...c, wabaId: e.target.value } : c
+                  )
+                }
                 placeholder="e.g. 123456789012345"
                 className="border-slate-700 bg-slate-900 font-mono text-sm"
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Phone Number ID <span className="text-red-400">*</span></Label>
+              <Label>
+                Phone Number ID <span className="text-red-400">*</span>
+              </Label>
               <Input
                 value={editCreds?.phoneNumberId ?? ''}
-                onChange={(e) => setEditCreds((c) => c ? { ...c, phoneNumberId: e.target.value } : c)}
+                onChange={(e) =>
+                  setEditCreds((c) =>
+                    c ? { ...c, phoneNumberId: e.target.value } : c
+                  )
+                }
                 placeholder="e.g. 987654321098765"
                 className="border-slate-700 bg-slate-900 font-mono text-sm"
               />
@@ -334,22 +353,32 @@ export default function TenantsPage() {
             <div className="space-y-1.5">
               <Label>
                 System User Access Token{' '}
-                <span className="text-xs text-slate-500">(optional — stored encrypted)</span>
+                <span className="text-xs text-slate-500">
+                  (optional — stored encrypted)
+                </span>
               </Label>
               <Input
                 type="password"
                 value={editCreds?.accessToken ?? ''}
-                onChange={(e) => setEditCreds((c) => c ? { ...c, accessToken: e.target.value } : c)}
+                onChange={(e) =>
+                  setEditCreds((c) =>
+                    c ? { ...c, accessToken: e.target.value } : c
+                  )
+                }
                 placeholder="EAAxxxxxxxx…"
                 className="border-slate-700 bg-slate-900 font-mono text-sm"
               />
-              <p className="text-[11px] text-slate-500 leading-relaxed">
+              <p className="text-[11px] leading-relaxed text-slate-500">
                 Get this from Meta Business Manager → Settings → System Users →
                 Generate Token. Leave blank to keep the existing stored token.
               </p>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="ghost" onClick={() => setEditCreds(null)} disabled={savingCreds}>
+              <Button
+                variant="ghost"
+                onClick={() => setEditCreds(null)}
+                disabled={savingCreds}
+              >
                 Cancel
               </Button>
               <Button onClick={saveCredentials} disabled={savingCreds}>
