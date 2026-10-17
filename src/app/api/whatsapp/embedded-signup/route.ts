@@ -41,15 +41,11 @@ export async function POST(req: NextRequest) {
   }
 
   // Exchange code for short-lived access token.
-  // redirect_uri must be included and must exactly match the URI registered
-  // in Facebook Login for Business → Valid OAuth Redirect URIs.
-  const appBaseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.APP_BASE_URL ??
-    `https://${req.headers.get('host')}`;
-  const redirectUri = `${appBaseUrl}/`;
+  // Do NOT pass redirect_uri: for Embedded Signup popup flow (FB.login),
+  // the code was generated with Meta's internal xd_arbiter URI as redirect_uri.
+  // Passing our own domain here causes Meta to reject with a domain mismatch.
   const tokenRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}&redirect_uri=${encodeURIComponent(redirectUri)}`,
+    `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}`,
     { cache: 'no-store' }
   );
   const tokenData = await tokenRes.json();
