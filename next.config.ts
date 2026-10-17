@@ -93,6 +93,34 @@ const nextConfig: NextConfig = {
    */
   async headers() {
     return [
+      // Explicit Content-Type for hashed static assets. Traefik (Dokploy)
+      // sometimes strips the upstream Content-Type and falls back to
+      // text/plain, which X-Content-Type-Options: nosniff then blocks.
+      // Next.js evaluates header rules in order and merges all matches,
+      // so these specific rules win before the catch-all below.
+      {
+        source: '/_next/static/:path*.css',
+        headers: [
+          { key: 'Content-Type', value: 'text/css; charset=utf-8' },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/_next/static/:path*.js',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/javascript; charset=utf-8',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
       {
         source: '/_next/static/:path*',
         headers: [
