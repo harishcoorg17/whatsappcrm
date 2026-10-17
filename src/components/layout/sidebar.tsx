@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
+import { useTenant } from '@/hooks/use-tenant';
 import { useTotalUnread } from '@/hooks/use-total-unread';
 import {
   LayoutDashboard,
@@ -19,6 +20,8 @@ import {
   LogOut,
   User,
   X,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -65,6 +68,7 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
+  const { tenants, selectedTenant, selectedTenantId, setSelectedTenantId } = useTenant();
   const totalUnread = useTotalUnread();
 
   // Close the drawer when route changes — users opened it to navigate,
@@ -141,6 +145,54 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {/* Tenant switcher — only shown when there are multiple tenants */}
+        {tenants.length > 0 && (
+          <div className="border-b border-slate-800/80 px-3 py-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-lg border border-slate-800/60 bg-slate-900/60 px-3 py-2 text-left text-xs font-medium text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800/60 focus:outline-none">
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">
+                  {selectedTenant?.name ?? 'All Tenants'}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                side="bottom"
+                sideOffset={4}
+                className="min-w-48 border border-slate-800 bg-slate-950/90 text-slate-100 shadow-2xl backdrop-blur-xl"
+              >
+                <DropdownMenuItem
+                  onClick={() => setSelectedTenantId(null)}
+                  className="gap-2 text-slate-300 focus:bg-slate-800 focus:text-white"
+                >
+                  {!selectedTenantId && <Check className="h-3.5 w-3.5 text-primary" />}
+                  {selectedTenantId && <span className="h-3.5 w-3.5" />}
+                  All Tenants
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-slate-800" />
+                {tenants.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    onClick={() => setSelectedTenantId(t.id)}
+                    className="gap-2 text-slate-300 focus:bg-slate-800 focus:text-white"
+                  >
+                    {selectedTenantId === t.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                    {selectedTenantId !== t.id && <span className="h-3.5 w-3.5" />}
+                    <span className="flex-1 truncate">{t.name}</span>
+                    {t.status === 'active' && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    )}
+                    {t.status !== 'active' && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">

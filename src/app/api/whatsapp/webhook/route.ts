@@ -221,6 +221,36 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id
 
+      // ── Multi-tenant path: check crm_tenants first ──────────────────────
+      // Each tenant's WABA credentials are stored in crm_tenants after ES.
+      const { data: tenantRow } = await supabaseAdmin()
+        .from('crm_tenants')
+        .select('id, access_token_enc, owner_user_id')
+        .eq('phone_number_id', phoneNumberId)
+        .eq('status', 'active')
+        .maybeSingle()
+
+      if (tenantRow?.access_token_enc && tenantRow.owner_user_id) {
+        let tenantToken: string
+        try {
+          tenantToken = decrypt(tenantRow.access_token_enc)
+        } catch {
+          console.error('[webhook] failed to decrypt tenant token, phone_number_id:', phoneNumberId)
+          continue
+        }
+        for (let i = 0; i < value.messages.length; i++) {
+          await processMessage(
+            value.messages[i],
+            value.contacts[i] || value.contacts[0],
+            tenantRow.owner_user_id,
+            tenantToken,
+            tenantRow.id,
+          )
+        }
+        continue
+      }
+
+      // ── Single-tenant fallback: whatsapp_config ──────────────────────────
       // Find user's config by phone_number_id. `.single()` returns
       // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
       // operators see the real cause in logs. ≥2 rows shouldn't happen
@@ -268,7 +298,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           message,
           contact,
           config.user_id,
-          decryptedAccessToken
+          decryptedAccessToken,
+          config.tenant_id ?? undefined,
         )
       }
     }
@@ -505,7 +536,8 @@ async function processMessage(
   message: WhatsAppMessage,
   contact: { profile: { name: string }; wa_id: string },
   userId: string,
-  accessToken: string
+  accessToken: string,
+  tenantId?: string,
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -514,7 +546,8 @@ async function processMessage(
   const contactOutcome = await findOrCreateContact(
     userId,
     senderPhone,
-    contactName
+    contactName,
+    tenantId,
   )
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
@@ -522,7 +555,8 @@ async function processMessage(
   // Find or create conversation
   const conversation = await findOrCreateConversation(
     userId,
-    contactRecord.id
+    contactRecord.id,
+    tenantId,
   )
   if (!conversation) return
 
@@ -866,13 +900,14 @@ interface ContactOutcome {
 async function findOrCreateContact(
   userId: string,
   phone: string,
-  name: string
+  name: string,
+  tenantId?: string,
 ): Promise<ContactOutcome | null> {
-  // Look up existing contacts for this user
-  const { data: contacts, error: contactsError } = await supabaseAdmin()
-    .from('contacts')
-    .select('*')
-    .eq('user_id', userId)
+  // Scope lookup to tenant when available, otherwise by user
+  const query = supabaseAdmin().from('contacts').select('*').eq('user_id', userId)
+  if (tenantId) query.eq('tenant_id', tenantId)
+
+  const { data: contacts, error: contactsError } = await query
 
   if (contactsError) {
     console.error('Error fetching contacts:', contactsError)
@@ -893,13 +928,14 @@ async function findOrCreateContact(
     return { contact: existingContact, wasCreated: false }
   }
 
-  // Create new contact
+  // Create new contact — tag with tenant_id when available
   const { data: newContact, error: createError } = await supabaseAdmin()
     .from('contacts')
     .insert({
       user_id: userId,
       phone,
       name: name || phone,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
     })
     .select()
     .single()
@@ -912,25 +948,28 @@ async function findOrCreateContact(
   return { contact: newContact, wasCreated: true }
 }
 
-async function findOrCreateConversation(userId: string, contactId: string) {
+async function findOrCreateConversation(userId: string, contactId: string, tenantId?: string) {
   // Look for existing conversation
-  const { data: existing, error: findError } = await supabaseAdmin()
+  const query = supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('user_id', userId)
     .eq('contact_id', contactId)
-    .single()
+  if (tenantId) query.eq('tenant_id', tenantId)
+
+  const { data: existing, error: findError } = await query.maybeSingle()
 
   if (!findError && existing) {
     return existing
   }
 
-  // Create new conversation
+  // Create new conversation — tag with tenant_id when available
   const { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
     .insert({
       user_id: userId,
       contact_id: contactId,
+      ...(tenantId ? { tenant_id: tenantId } : {}),
     })
     .select()
     .single()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import { encrypt } from '@/lib/whatsapp/encryption';
 
 function supabaseAdmin() {
@@ -10,6 +11,21 @@ function supabaseAdmin() {
 }
 
 export async function POST(req: NextRequest) {
+  // Capture the authenticated admin's user ID to store as owner_user_id on the tenant.
+  // The middleware already enforces auth for this route; this is just reading the session.
+  let ownerUserId: string | null = null;
+  try {
+    const userClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll: () => req.cookies.getAll() } }
+    );
+    const { data: { user } } = await userClient.auth.getUser();
+    ownerUserId = user?.id ?? null;
+  } catch {
+    // non-fatal — webhook routing will still work once owner_user_id is set manually
+  }
+
   const body = await req.json();
   const {
     code,
@@ -120,6 +136,7 @@ export async function POST(req: NextRequest) {
       phone_number_id: phoneNumberId,
       access_token_enc: encryptedToken,
       status: 'active',
+      ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
     })
     .eq('slug', tenantSlug);
 
