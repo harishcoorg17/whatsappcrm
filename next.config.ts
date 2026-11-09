@@ -35,7 +35,8 @@ const SECURITY_HEADERS = [
       // Next.js needs 'unsafe-inline' for its inline hydration script
       // and 'unsafe-eval' in dev + some production optimisations.
       // Nonce-based CSP is a later project.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // connect.facebook.net serves the Facebook JS SDK used by Embedded Signup.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net",
       // Tailwind + inline style attributes on lots of components.
       "style-src 'self' 'unsafe-inline'",
       // Supabase public-bucket avatars, contact avatars (arbitrary
@@ -44,8 +45,11 @@ const SECURITY_HEADERS = [
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
       // Supabase REST + realtime (WSS). Includes the self-hosted instance
-      // at sslip.io. All Meta API calls happen server-side.
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://amstago-supabase-12772e-31-97-235-19.sslip.io wss://amstago-supabase-12772e-31-97-235-19.sslip.io",
+      // at sslip.io. Meta API calls happen server-side, except the Facebook SDK
+      // and login popup used by Embedded Signup, which talk to facebook.com.
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://amstago-supabase-12772e-31-97-235-19.sslip.io wss://amstago-supabase-12772e-31-97-235-19.sslip.io https://*.facebook.com https://*.facebook.net",
+      // The Facebook SDK renders its login frames from facebook.com.
+      "frame-src 'self' https://*.facebook.com https://*.facebook.net",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
