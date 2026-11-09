@@ -71,7 +71,7 @@ export default function ContactsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Contact | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  // All tags for display
+  // All tags for display (best-effort — tags table may not exist yet)
   const [tagsMap, setTagsMap] = useState<Record<string, Tag>>({});
 
   const fetchTags = useCallback(async () => {
@@ -97,7 +97,9 @@ export default function ContactsPage() {
 
     if (search.trim()) {
       const term = `%${search.trim()}%`;
-      query = query.or(`name.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+      query = query.or(
+        `name.ilike.${term},phone.ilike.${term},email.ilike.${term}`
+      );
     }
 
     const { data, count, error } = await query;
@@ -110,31 +112,15 @@ export default function ContactsPage() {
 
     setTotalCount(count ?? 0);
 
-    if (!data || data.length === 0) {
-      setContacts([]);
-      setLoading(false);
-      return;
-    }
-
-    // Fetch tags for these contacts
-    const contactIds = data.map((c) => c.id);
-    const { data: contactTags } = await supabase
-      .from('contact_tags')
-      .select('contact_id, tag_id')
-      .in('contact_id', contactIds);
-
-    const tagsByContact: Record<string, string[]> = {};
-    contactTags?.forEach((ct) => {
-      if (!tagsByContact[ct.contact_id]) tagsByContact[ct.contact_id] = [];
-      tagsByContact[ct.contact_id].push(ct.tag_id);
+    // contacts.tags is TEXT[] on the live DB — map each string to a Tag-like
+    // object using tagsMap when available, otherwise use the string as name.
+    const enriched: ContactWithTags[] = (data ?? []).map((c) => {
+      const rawTags: string[] = Array.isArray(c.tags) ? c.tags : [];
+      const tagObjects = rawTags.map(
+        (t) => tagsMap[t] ?? ({ id: t, name: t, color: '#6366f1' } as Tag)
+      );
+      return { ...c, tags: tagObjects };
     });
-
-    const enriched: ContactWithTags[] = data.map((c) => ({
-      ...c,
-      tags: (tagsByContact[c.id] ?? [])
-        .map((tid) => tagsMap[tid])
-        .filter(Boolean),
-    }));
 
     setContacts(enriched);
     setLoading(false);
@@ -160,13 +146,10 @@ export default function ContactsPage() {
     setFormOpen(true);
   }
 
-  async function openEditForm(contact: Contact) {
-    const { data } = await supabase
-      .from('contact_tags')
-      .select('*')
-      .eq('contact_id', contact.id);
+  function openEditForm(contact: Contact) {
+    // contact_tags join table doesn't exist on live DB — tags live in contacts.tags TEXT[]
     setEditContact(contact);
-    setEditContactTags(data ?? []);
+    setEditContactTags([]);
     setFormOpen(true);
   }
 
@@ -208,11 +191,14 @@ export default function ContactsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Contacts</h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Manage your audience database. {totalCount > 0 && `${totalCount} total contacts.`}
+          <h1 className="text-2xl font-bold tracking-tight text-white">
+            Contacts
+          </h1>
+          <p className="mt-1 text-sm text-slate-400">
+            Manage your audience database.{' '}
+            {totalCount > 0 && `${totalCount} total contacts.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -226,7 +212,7 @@ export default function ContactsPage() {
           </Button>
           <Button
             onClick={openAddForm}
-            className="bg-gradient-to-r from-primary via-indigo-600 to-cyan-500 text-white font-semibold shadow-lg shadow-primary/25 hover:scale-[1.02] transition-transform"
+            className="from-primary shadow-primary/25 bg-gradient-to-r via-indigo-600 to-cyan-500 font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
           >
             <Plus className="size-4" />
             Add Contact
@@ -236,7 +222,7 @@ export default function ContactsPage() {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-slate-400" />
+        <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
         <Input
           value={search}
           onChange={(e) => {
@@ -244,7 +230,7 @@ export default function ContactsPage() {
             setPage(0);
           }}
           placeholder="Search by name, phone, or email..."
-          className="pl-9 bg-slate-900/60 border-slate-800 text-white placeholder:text-slate-500 backdrop-blur-md focus:border-primary"
+          className="focus:border-primary border-slate-800 bg-slate-900/60 pl-9 text-white backdrop-blur-md placeholder:text-slate-500"
         />
       </div>
 
@@ -255,30 +241,42 @@ export default function ContactsPage() {
             <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-slate-400">Name</TableHead>
               <TableHead className="text-slate-400">Phone</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Email</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Company</TableHead>
-              <TableHead className="text-slate-400 hidden md:table-cell">Tags</TableHead>
-              <TableHead className="text-slate-400 hidden lg:table-cell">Created</TableHead>
-              <TableHead className="text-slate-400 w-12" />
+              <TableHead className="hidden text-slate-400 md:table-cell">
+                Email
+              </TableHead>
+              <TableHead className="hidden text-slate-400 lg:table-cell">
+                Company
+              </TableHead>
+              <TableHead className="hidden text-slate-400 md:table-cell">
+                Tags
+              </TableHead>
+              <TableHead className="hidden text-slate-400 lg:table-cell">
+                Created
+              </TableHead>
+              <TableHead className="w-12 text-slate-400" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={7} className="py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
-                    <Loader2 className="size-6 animate-spin text-primary" />
-                    <p className="text-sm text-slate-500">Loading contacts...</p>
+                    <Loader2 className="text-primary size-6 animate-spin" />
+                    <p className="text-sm text-slate-500">
+                      Loading contacts...
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
             ) : contacts.length === 0 ? (
               <TableRow className="border-slate-800">
-                <TableCell colSpan={7} className="text-center py-12">
+                <TableCell colSpan={7} className="py-12 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="size-8 text-slate-600" />
                     <p className="text-sm text-slate-500">
-                      {search ? 'No contacts match your search.' : 'No contacts yet.'}
+                      {search
+                        ? 'No contacts match your search.'
+                        : 'No contacts yet.'}
                     </p>
                     {!search && (
                       <Button
@@ -298,20 +296,24 @@ export default function ContactsPage() {
               contacts.map((contact) => (
                 <TableRow
                   key={contact.id}
-                  className="border-slate-800 hover:bg-slate-900/50 cursor-pointer"
+                  className="cursor-pointer border-slate-800 hover:bg-slate-900/50"
                   onClick={() => openDetail(contact.id)}
                 >
-                  <TableCell className="text-white font-medium">
-                    {contact.name || <span className="text-slate-500 italic">Unnamed</span>}
+                  <TableCell className="font-medium text-white">
+                    {contact.name || (
+                      <span className="text-slate-500 italic">Unnamed</span>
+                    )}
                   </TableCell>
-                  <TableCell className="text-slate-300 font-mono text-xs">
+                  <TableCell className="font-mono text-xs text-slate-300">
                     {contact.phone}
                   </TableCell>
-                  <TableCell className="text-slate-400 hidden md:table-cell text-sm">
+                  <TableCell className="hidden text-sm text-slate-400 md:table-cell">
                     {contact.email || <span className="text-slate-600">-</span>}
                   </TableCell>
-                  <TableCell className="text-slate-400 hidden lg:table-cell text-sm">
-                    {contact.company || <span className="text-slate-600">-</span>}
+                  <TableCell className="hidden text-sm text-slate-400 lg:table-cell">
+                    {contact.company || (
+                      <span className="text-slate-600">-</span>
+                    )}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     <div className="flex flex-wrap gap-1">
@@ -329,7 +331,7 @@ export default function ContactsPage() {
                           </span>
                         ))
                       ) : (
-                        <span className="text-slate-600 text-xs">-</span>
+                        <span className="text-xs text-slate-600">-</span>
                       )}
                       {contact.tags && contact.tags.length > 3 && (
                         <span className="text-[10px] text-slate-500">
@@ -338,7 +340,7 @@ export default function ContactsPage() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-slate-500 text-xs hidden lg:table-cell">
+                  <TableCell className="hidden text-xs text-slate-500 lg:table-cell">
                     {new Date(contact.created_at).toLocaleDateString('en-US', {
                       month: 'short',
                       day: 'numeric',
@@ -361,7 +363,7 @@ export default function ContactsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
                         align="end"
-                        className="bg-slate-900 border-slate-700"
+                        className="border-slate-700 bg-slate-900"
                       >
                         <DropdownMenuItem
                           onClick={(e) => {
@@ -398,8 +400,8 @@ export default function ContactsPage() {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-500">
-            Showing {page * PAGE_SIZE + 1}-{Math.min((page + 1) * PAGE_SIZE, totalCount)} of{' '}
-            {totalCount}
+            Showing {page * PAGE_SIZE + 1}-
+            {Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}
           </p>
           <div className="flex items-center gap-1">
             <Button
@@ -411,7 +413,7 @@ export default function ContactsPage() {
             >
               <ChevronLeft className="size-4" />
             </Button>
-            <span className="text-xs text-slate-400 px-2">
+            <span className="px-2 text-xs text-slate-400">
               Page {page + 1} of {totalPages}
             </span>
             <Button
@@ -456,18 +458,18 @@ export default function ContactsPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="bg-slate-900 border-slate-700 text-slate-200 sm:max-w-sm">
+        <DialogContent className="border-slate-700 bg-slate-900 text-slate-200 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">Delete Contact</DialogTitle>
             <DialogDescription className="text-slate-400">
               Are you sure you want to delete{' '}
-              <span className="text-slate-200 font-medium">
+              <span className="font-medium text-slate-200">
                 {deleteTarget?.name || deleteTarget?.phone}
               </span>
               ? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="bg-slate-900 border-slate-700">
+          <DialogFooter className="border-slate-700 bg-slate-900">
             <Button
               variant="outline"
               onClick={() => setDeleteConfirmOpen(false)}

@@ -69,25 +69,6 @@ export function ContactForm({
     );
   }
 
-  async function resolveTenantId(): Promise<string | null> {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data: crmTenant } = await supabase
-      .from('crm_tenants')
-      .select('slug')
-      .eq('owner_user_id', user.id)
-      .single();
-    if (!crmTenant?.slug) return null;
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('id')
-      .eq('slug', crmTenant.slug)
-      .single();
-    return tenant?.id ?? null;
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -113,25 +94,20 @@ export function ContactForm({
           .eq('id', contactId);
         if (error) throw error;
       } else {
-        const tenantId = await resolveTenantId();
-        if (!tenantId)
-          throw new Error(
-            'Could not resolve tenant — check your account setup'
-          );
-
-        const { data, error } = await supabase
-          .from('contacts')
-          .insert({
-            tenant_id: tenantId,
+        // Use the server-side API route (service role) to bypass RLS on the
+        // contacts table, which is owned by the whatsappagent schema.
+        const res = await fetch('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
             name: name.trim() || null,
             phone: phone.trim(),
             email: email.trim() || null,
-            tags: [],
-          })
-          .select('id')
-          .single();
-        if (error) throw error;
-        contactId = data.id;
+          }),
+        });
+        const json = (await res.json()) as { id?: string; error?: string };
+        if (!res.ok) throw new Error(json.error ?? 'Failed to create contact');
+        contactId = json.id;
       }
 
       toast.success(isEdit ? 'Contact updated' : 'Contact created');
