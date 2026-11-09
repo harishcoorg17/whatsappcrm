@@ -1,21 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { supabaseAdmin } from '@/lib/automations/admin-client';
 
-async function resolveTenantId(userId: string): Promise<string | null> {
-  const admin = supabaseAdmin();
-  const { data: crmTenant } = await admin
+/**
+ * POST /api/contacts  { name?, phone, email? }
+ *
+ * Runs as the signed-in user, so row-level security decides what they can see
+ * and write: the contact is owned by them (`user_id`) and filed under the
+ * oldest tenant they own. A user who owns no tenant can still create contacts;
+ * they are just not tied to one.
+ */
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function findOwnedTenantId(
+  supabase: SupabaseClient,
+  userId: string
+): Promise<string | null> {
+  const { data } = await supabase
     .from('crm_tenants')
-    .select('slug')
-    .eq('owner_user_id', userId)
-    .maybeSingle();
-  if (!crmTenant?.slug) return null;
-  const { data: tenant } = await admin
-    .from('tenants')
     .select('id')
-    .eq('slug', crmTenant.slug)
+    .eq('owner_user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
     .maybeSingle();
-  return tenant?.id ?? null;
+  return data?.id ?? null;
 }
 
 export async function POST(req: NextRequest) {
@@ -38,22 +46,16 @@ export async function POST(req: NextRequest) {
   if (!phone?.trim())
     return NextResponse.json({ error: 'Phone is required' }, { status: 400 });
 
-  const tenantId = await resolveTenantId(user.id);
-  if (!tenantId) {
-    return NextResponse.json(
-      { error: 'Could not resolve tenant — check your account setup' },
-      { status: 400 }
-    );
-  }
+  const tenantId = await findOwnedTenantId(supabase, user.id);
 
-  const { data, error } = await supabaseAdmin()
+  const { data, error } = await supabase
     .from('contacts')
     .insert({
+      user_id: user.id,
       tenant_id: tenantId,
       name: name?.trim() || null,
       phone: phone.trim(),
       email: email?.trim() || null,
-      tags: [],
     })
     .select('id')
     .single();
