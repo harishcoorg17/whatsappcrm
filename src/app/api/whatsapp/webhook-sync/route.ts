@@ -13,6 +13,10 @@ import {
   type PhoneConfigResponse,
   type SubscribedAppsResponse,
 } from '@/lib/whatsapp/webhook-override';
+import {
+  accountIdsFromDebugToken,
+  type DebugTokenResponse,
+} from '@/lib/whatsapp/granted-accounts';
 
 /**
  * POST /api/whatsapp/webhook-sync  { tenantSlug }
@@ -180,6 +184,83 @@ async function applyFix(
   }
 }
 
+interface SubscriptionResult {
+  accountId: string;
+  status: 'already' | 'subscribed' | 'failed';
+  error?: string;
+}
+
+/** Account ids the token was granted, or an empty list if Meta cannot say. */
+async function fetchGrantedAccountIds(token: string): Promise<string[]> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appId || !appSecret) return [];
+  try {
+    const params = new URLSearchParams({
+      input_token: token,
+      access_token: `${appId}|${appSecret}`,
+    });
+    const res = await fetch(`${GRAPH_BASE_URL}/debug_token?${params}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const parsed = (await res.json()) as DebugTokenResponse;
+    return accountIdsFromDebugToken(parsed, appId) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function subscribeIfMissing(
+  accountId: string,
+  token: string,
+  appId: string
+): Promise<SubscriptionResult> {
+  try {
+    const current = await graph<SubscribedAppsResponse>(
+      `${accountId}/subscribed_apps`,
+      token
+    );
+    const present = (current.data ?? []).some(
+      (entry) => entry.whatsapp_business_api_data?.id === appId
+    );
+    if (present) return { accountId, status: 'already' };
+
+    await graph(`${accountId}/subscribed_apps`, token, {
+      method: 'POST',
+      body: {},
+    });
+    return { accountId, status: 'subscribed' };
+  } catch (error) {
+    return {
+      accountId,
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Meta request failed',
+    };
+  }
+}
+
+/**
+ * A number can be linked to several account records, and Meta routes its
+ * events through the subscriptions on them. Subscribe this app on the stored
+ * account and on every other account the token can reach; accounts that
+ * already have the app are left alone.
+ */
+async function ensureSubscribed(
+  storedAccountId: string,
+  token: string
+): Promise<SubscriptionResult[]> {
+  const appId = process.env.META_APP_ID ?? '';
+  const granted = await fetchGrantedAccountIds(token);
+  const accountIds = Array.from(new Set([storedAccountId, ...granted]));
+
+  const results: SubscriptionResult[] = [];
+  for (const accountId of accountIds) {
+    results.push(await subscribeIfMissing(accountId, token, appId));
+  }
+  return results;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const userId = await getSessionUserId(req);
@@ -218,24 +299,21 @@ export async function POST(req: NextRequest) {
     const before = await readState(tenant, token);
     const plan = planOverrideFix(before, desired);
 
-    if (!plan.fixPhone && !plan.fixWaba) {
-      return NextResponse.json({
-        webhookUrl: desired,
-        before,
-        after: before,
-        changed: { phone: false, waba: false },
-      });
+    let after = before;
+    if (plan.fixPhone || plan.fixWaba) {
+      const verifyToken = await resolveVerifyToken(db, tenant);
+      await applyFix(tenant, token, desired, verifyToken, plan);
+      after = await readState(tenant, token);
     }
 
-    const verifyToken = await resolveVerifyToken(db, tenant);
-    await applyFix(tenant, token, desired, verifyToken, plan);
-    const after = await readState(tenant, token);
+    const subscriptions = await ensureSubscribed(tenant.waba_id, token);
 
     return NextResponse.json({
       webhookUrl: desired,
       before,
       after,
       changed: { phone: plan.fixPhone, waba: plan.fixWaba },
+      subscriptions,
     });
   } catch (error) {
     if (error instanceof SyncError) {

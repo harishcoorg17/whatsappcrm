@@ -69,6 +69,16 @@ interface MetaScenario {
   phoneOverride: string | null;
   wabaOverride: string | null;
   failRead: boolean;
+  /** Accounts Meta's debug_token says the token can reach. */
+  granted: string[];
+  /** Accounts that do not have this app subscribed yet. */
+  unsubscribed: Set<string>;
+  /** Accounts whose subscription list Meta refuses to read. */
+  unreadable: Set<string>;
+}
+
+function accountIdFrom(url: string): string {
+  return /\/([^/?]+)\/subscribed_apps/.exec(url)?.[1] ?? '';
 }
 
 let meta: MetaScenario;
@@ -87,23 +97,51 @@ function installFetchMock() {
         posts.push({ url, body });
         // Apply the change so the follow-up read reflects it.
         if (url.includes('/subscribed_apps')) {
-          meta.wabaOverride = body.override_callback_uri;
+          if (body.override_callback_uri) {
+            meta.wabaOverride = body.override_callback_uri;
+          } else {
+            // A plain subscribe call: the app is now on this account.
+            meta.unsubscribed.delete(accountIdFrom(url));
+          }
         } else if (body.webhook_configuration) {
           meta.phoneOverride = body.webhook_configuration.override_callback_uri;
         }
         return json({ success: true });
       }
+      if (url.includes('/debug_token')) {
+        return json({
+          data: {
+            is_valid: true,
+            app_id: 'app123',
+            granular_scopes: [
+              {
+                scope: 'whatsapp_business_management',
+                target_ids: meta.granted,
+              },
+            ],
+          },
+        });
+      }
       if (meta.failRead) {
         return json({ error: { message: '(#100) not allowed' } }, 400);
       }
       if (url.includes('/subscribed_apps')) {
+        const accountId = accountIdFrom(url);
+        if (meta.unreadable.has(accountId)) {
+          return json(
+            { error: { message: '(#100) not a WhatsApp account' } },
+            400
+          );
+        }
         return json({
-          data: [
-            {
-              whatsapp_business_api_data: { id: 'app123' },
-              override_callback_uri: meta.wabaOverride,
-            },
-          ],
+          data: meta.unsubscribed.has(accountId)
+            ? []
+            : [
+                {
+                  whatsapp_business_api_data: { id: 'app123' },
+                  override_callback_uri: meta.wabaOverride,
+                },
+              ],
         });
       }
       return json({
@@ -147,7 +185,15 @@ beforeEach(() => {
       verify_token: 'vt-secret',
     },
   });
-  meta = { phoneOverride: null, wabaOverride: null, failRead: false };
+  vi.stubEnv('META_APP_SECRET', 'secret');
+  meta = {
+    phoneOverride: null,
+    wabaOverride: null,
+    failRead: false,
+    granted: [],
+    unsubscribed: new Set(),
+    unreadable: new Set(),
+  };
   posts = [];
   installFetchMock();
 });
@@ -277,5 +323,61 @@ describe('POST /api/whatsapp/webhook-sync — overrides', () => {
     state.tenant!.owner_user_id = 'client-user';
     meta.phoneOverride = OLD;
     expect((await callRoute({ tenantSlug: 'a' })).status).toBe(200);
+  });
+});
+
+describe('POST /api/whatsapp/webhook-sync — account subscriptions', () => {
+  it('leaves accounts that already have the app alone', async () => {
+    meta.granted = ['waba1', 'acct2'];
+    const res = await callRoute({ tenantSlug: 'a' });
+    const json = await res.json();
+    expect(json.subscriptions).toEqual([
+      { accountId: 'waba1', status: 'already' },
+      { accountId: 'acct2', status: 'already' },
+    ]);
+    expect(posts).toHaveLength(0);
+  });
+
+  it('subscribes the app on another account the token can reach', async () => {
+    meta.granted = ['waba1', 'acct2'];
+    meta.unsubscribed.add('acct2');
+    const res = await callRoute({ tenantSlug: 'a' });
+    const json = await res.json();
+    expect(json.subscriptions).toContainEqual({
+      accountId: 'acct2',
+      status: 'subscribed',
+    });
+    expect(posts).toHaveLength(1);
+    expect(posts[0].url).toMatch(/\/acct2\/subscribed_apps$/);
+    expect(posts[0].body).toEqual({});
+  });
+
+  it('subscribes the stored account when it is missing the app', async () => {
+    meta.unsubscribed.add('waba1');
+    const res = await callRoute({ tenantSlug: 'a' });
+    expect((await res.json()).subscriptions).toEqual([
+      { accountId: 'waba1', status: 'subscribed' },
+    ]);
+  });
+
+  it('reports an account Meta refuses and keeps going with the others', async () => {
+    meta.granted = ['bad', 'acct2'];
+    meta.unreadable.add('bad');
+    meta.unsubscribed.add('acct2');
+    const json = await (await callRoute({ tenantSlug: 'a' })).json();
+    const byId = Object.fromEntries(
+      json.subscriptions.map((s: { accountId: string }) => [s.accountId, s])
+    );
+    expect(byId.bad.status).toBe('failed');
+    expect(byId.bad.error).toMatch(/not a WhatsApp account/);
+    expect(byId.acct2.status).toBe('subscribed');
+  });
+
+  it('falls back to the stored account when the token list is unavailable', async () => {
+    meta.granted = [];
+    const json = await (await callRoute({ tenantSlug: 'a' })).json();
+    expect(json.subscriptions).toEqual([
+      { accountId: 'waba1', status: 'already' },
+    ]);
   });
 });

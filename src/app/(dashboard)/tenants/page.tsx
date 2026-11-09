@@ -200,14 +200,32 @@ export default function TenantsPage() {
         toast.error(data.error ?? 'Could not check the webhook');
         return;
       }
-      if (!data.changed.phone && !data.changed.waba) {
-        toast.success(
-          'No competing webhook override found, so Meta is not redirecting this number’s messages.'
-        );
-        return;
+      const subs: Array<{ status: string; error?: string }> =
+        data.subscriptions ?? [];
+      const added = subs.filter((s) => s.status === 'subscribed').length;
+      const failed = subs.filter((s) => s.status === 'failed');
+
+      const parts: string[] = [];
+      if (data.changed.phone || data.changed.waba) {
+        const previous = data.before.phone ?? data.before.waba;
+        parts.push(`Messages now go to ${data.webhookUrl} (was ${previous}).`);
+      } else {
+        parts.push('No competing webhook override found.');
       }
-      const previous = data.before.phone ?? data.before.waba;
-      toast.success(`Messages now go to ${data.webhookUrl} (was ${previous}).`);
+      if (added > 0) {
+        parts.push(`Subscribed this app on ${added} more account(s).`);
+      } else if (subs.length > 0) {
+        parts.push(
+          `App already subscribed on ${subs.length - failed.length} account(s).`
+        );
+      }
+      if (failed.length > 0) {
+        parts.push(`${failed.length} account(s) could not be checked.`);
+      }
+
+      const message = parts.join(' ');
+      if (failed.length > 0) toast.warning(message);
+      else toast.success(message);
     } catch {
       toast.error('Could not reach the server');
     } finally {
