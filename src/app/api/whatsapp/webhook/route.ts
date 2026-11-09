@@ -220,12 +220,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
+  // One line per accepted delivery, so "Meta never called us" and "we dropped
+  // it" can be told apart in the logs. Counts only, no message content.
+  console.log('[webhook] delivery', JSON.stringify(summarizeWebhook(body)));
+
   // Process asynchronously so we can ack Meta within their timeout.
   processWebhook(body).catch((error) => {
     console.error('Error processing webhook:', error);
   });
 
   return NextResponse.json({ status: 'received' }, { status: 200 });
+}
+
+/** Non-sensitive shape of a delivery: fields, number ids and counts only. */
+function summarizeWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
+  return (body.entry ?? []).flatMap((entry) =>
+    (entry.changes ?? []).map((change) => ({
+      field: change.field,
+      phoneNumberId: change.value?.metadata?.phone_number_id ?? null,
+      messages: change.value?.messages?.length ?? 0,
+      statuses: change.value?.statuses?.length ?? 0,
+    }))
+  );
 }
 
 async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
@@ -268,6 +284,13 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         .eq('phone_number_id', phoneNumberId)
         .eq('status', 'active')
         .maybeSingle();
+
+      console.log('[webhook] tenant lookup', {
+        phoneNumberId,
+        found: Boolean(tenantRow),
+        hasToken: Boolean(tenantRow?.access_token_enc),
+        hasOwner: Boolean(tenantRow?.owner_user_id),
+      });
 
       if (tenantRow?.access_token_enc) {
         let tenantToken: string;
