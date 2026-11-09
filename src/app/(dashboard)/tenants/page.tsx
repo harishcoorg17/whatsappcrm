@@ -62,6 +62,7 @@ export default function TenantsPage() {
   const [saving, setSaving] = useState(false);
   const [editCreds, setEditCreds] = useState<EditCreds | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
+  const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
   const supabase = createClient();
 
   const load = useCallback(async () => {
@@ -184,6 +185,36 @@ export default function TenantsPage() {
     }
   };
 
+  // Meta sends inbound messages to a phone-number or account override before
+  // the app callback, so a leftover override can hide messages from this CRM.
+  const syncWebhook = async (t: Tenant) => {
+    setSyncingSlug(t.slug);
+    try {
+      const res = await fetch('/api/whatsapp/webhook-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantSlug: t.slug }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? 'Could not check the webhook');
+        return;
+      }
+      if (!data.changed.phone && !data.changed.waba) {
+        toast.success(
+          'No competing webhook override found, so Meta is not redirecting this number’s messages.'
+        );
+        return;
+      }
+      const previous = data.before.phone ?? data.before.waba;
+      toast.success(`Messages now go to ${data.webhookUrl} (was ${previous}).`);
+    } catch {
+      toast.error('Could not reach the server');
+    } finally {
+      setSyncingSlug(null);
+    }
+  };
+
   const toggleStatus = async (t: Tenant) => {
     const next = t.status === 'active' ? 'suspended' : 'active';
     const { error } = await supabase
@@ -302,6 +333,15 @@ export default function TenantsPage() {
                     <ExternalLink className="h-3.5 w-3.5" />
                     {t.waba_id ? 'Re-connect' : 'Connect WA'}
                   </a>
+                  {t.waba_id && (
+                    <button
+                      onClick={() => syncWebhook(t)}
+                      disabled={syncingSlug === t.slug}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white disabled:opacity-50"
+                    >
+                      {syncingSlug === t.slug ? 'Checking…' : 'Fix webhook'}
+                    </button>
+                  )}
                   <button
                     onClick={() => toggleStatus(t)}
                     className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
