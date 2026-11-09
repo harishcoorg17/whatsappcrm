@@ -30,18 +30,36 @@ ALTER TABLE messages
   ADD COLUMN IF NOT EXISTS status        TEXT    NOT NULL DEFAULT 'sent';
 
 -- Backfill sender_type from existing role column
-UPDATE messages
-  SET sender_type = CASE
-    WHEN role = 'user'      THEN 'customer'
-    WHEN role = 'assistant' THEN 'agent'
-    ELSE 'agent'
-  END
-  WHERE sender_type IS NULL;
+-- Guarded: a fresh database has no legacy `role` column, so the backfill
+-- only runs when it exists.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'role'
+  ) THEN
+    UPDATE messages
+      SET sender_type = CASE
+        WHEN role = 'user'      THEN 'customer'
+        WHEN role = 'assistant' THEN 'agent'
+        ELSE 'agent'
+      END
+      WHERE sender_type IS NULL;
+  END IF;
+END $$;
 
--- Backfill content_text from existing content column
-UPDATE messages
-  SET content_text = content
-  WHERE content_text IS NULL AND content IS NOT NULL;
+-- Backfill content_text from existing content column (same guard)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'messages' AND column_name = 'content'
+  ) THEN
+    UPDATE messages
+      SET content_text = content
+      WHERE content_text IS NULL AND content IS NOT NULL;
+  END IF;
+END $$;
 
 -- Backfill message_id from whatsapp_msg_id if that column exists
 DO $$
