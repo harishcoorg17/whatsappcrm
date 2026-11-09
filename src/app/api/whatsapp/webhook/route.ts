@@ -281,39 +281,11 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           continue;
         }
 
-        // owner_user_id is required to scope contacts/conversations. If it
-        // wasn't captured during ES (e.g. user was not logged in), auto-resolve
-        // it from the first admin user and persist it so future webhooks are fast.
-        let ownerUserId: string | null = tenantRow.owner_user_id ?? null;
-        if (!ownerUserId) {
-          try {
-            const { data: users } = await supabaseAdmin().auth.admin.listUsers({
-              perPage: 1,
-            });
-            const firstUser = users?.users?.[0];
-            if (firstUser?.id) {
-              ownerUserId = firstUser.id;
-              void supabaseAdmin()
-                .from('crm_tenants')
-                .update({ owner_user_id: ownerUserId })
-                .eq('id', tenantRow.id)
-                .then(({ error }: { error: unknown }) => {
-                  if (error)
-                    console.warn(
-                      '[webhook] owner_user_id backfill failed:',
-                      error
-                    );
-                  else
-                    console.log(
-                      '[webhook] owner_user_id backfilled for tenant',
-                      tenantRow.id
-                    );
-                });
-            }
-          } catch (e) {
-            console.error('[webhook] failed to resolve owner_user_id:', e);
-          }
-        }
+        // owner_user_id scopes contacts/conversations, so it must never be
+        // guessed. An earlier version assigned the first auth user to an
+        // unowned tenant, which filed one tenant's conversations under an
+        // unrelated account. An unowned tenant is a setup error: drop and log.
+        const ownerUserId: string | null = tenantRow.owner_user_id ?? null;
 
         if (!ownerUserId) {
           console.error(

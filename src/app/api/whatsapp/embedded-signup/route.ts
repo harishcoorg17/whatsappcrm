@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { encrypt } from '@/lib/whatsapp/encryption';
+import { GRAPH_BASE_URL } from '@/lib/whatsapp/meta-config';
+import {
+  canManageTenant,
+  resolveSignupAssets,
+} from '@/lib/whatsapp/embedded-signup';
+
+type AdminClient = ReturnType<typeof supabaseAdmin>;
 
 function supabaseAdmin() {
   return createClient(
@@ -10,181 +17,449 @@ function supabaseAdmin() {
   );
 }
 
-export async function POST(req: NextRequest) {
-  // Capture the authenticated admin's user ID to store as owner_user_id on the tenant.
-  // The middleware already enforces auth for this route; this is just reading the session.
-  let ownerUserId: string | null = null;
-  try {
-    const userClient = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { cookies: { getAll: () => req.cookies.getAll() } }
-    );
-    const {
-      data: { user },
-    } = await userClient.auth.getUser();
-    ownerUserId = user?.id ?? null;
-  } catch {
-    // non-fatal — webhook routing will still work once owner_user_id is set manually
+class SignupError extends Error {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
+    super(message);
   }
+}
 
-  const body = await req.json();
+interface SignupBody {
+  code?: string | null;
+  tenantSlug?: string;
+  wabaId?: string;
+  phoneNumberId?: string;
+  /** Raw System User token. Skips the code exchange; platform admins only. */
+  accessToken?: string;
+  /** Hint from the browser for the audit log. Never used for authorization. */
+  coexistence?: boolean;
+}
+
+interface TenantRow {
+  id: string;
+  owner_user_id: string | null;
+}
+
+async function graphGet<T>(
+  path: string,
+  params: Record<string, string>,
+  bearer?: string
+): Promise<T> {
+  const url = `${GRAPH_BASE_URL}/${path}?${new URLSearchParams(params)}`;
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: bearer ? { Authorization: `Bearer ${bearer}` } : undefined,
+  });
+  const data = (await res.json()) as T & { error?: { message?: string } };
+  if (!res.ok) {
+    throw new SignupError(
+      data.error?.message ?? `Graph request failed (${path})`,
+      400
+    );
+  }
+  return data;
+}
+
+async function getSessionUserId(req: NextRequest): Promise<string | null> {
+  const userClient = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: { getAll: () => req.cookies.getAll() } }
+  );
   const {
-    code,
-    tenantSlug,
-    wabaId: wabaIdFromSession,
-    phoneNumberId: phoneNumberIdFromSession,
-    accessToken: directToken,
-  } = body as {
-    code?: string | null;
-    tenantSlug?: string;
-    wabaId?: string;
-    phoneNumberId?: string;
-    /** Raw System User token — skips OAuth code exchange entirely. */
-    accessToken?: string;
-  };
+    data: { user },
+  } = await userClient.auth.getUser();
+  return user?.id ?? null;
+}
 
-  if (!tenantSlug)
-    return NextResponse.json(
-      { error: 'tenantSlug is required' },
-      { status: 400 }
+async function isPlatformAdmin(
+  db: AdminClient,
+  userId: string
+): Promise<boolean> {
+  const { data, error } = await db
+    .from('crm_platform_admins')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error(
+      '[embedded-signup] platform admin lookup failed:',
+      error.message
     );
-
-  // ── Direct token path (manual credentials form in Tenants page) ─────────
-  // When the caller provides a raw access token (System User token), skip the
-  // OAuth exchange entirely and encrypt + store it directly.
-  if (directToken && !code) {
-    const wabaId = wabaIdFromSession?.trim() ?? '';
-    const phoneNumberId = phoneNumberIdFromSession?.trim() ?? '';
-    if (!wabaId || !phoneNumberId) {
-      return NextResponse.json(
-        { error: 'wabaId and phoneNumberId are required with a direct token' },
-        { status: 400 }
-      );
-    }
-    const encryptedToken = await encrypt(directToken.trim());
-    const db = supabaseAdmin();
-    const { error: dbError } = await db
-      .from('crm_tenants')
-      .update({
-        waba_id: wabaId,
-        phone_number_id: phoneNumberId,
-        access_token_enc: encryptedToken,
-        status: 'active',
-        ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
-      })
-      .eq('slug', tenantSlug);
-    if (dbError)
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
-    return NextResponse.json({ wabaId, phoneNumberId });
+    return false;
   }
+  return Boolean(data);
+}
 
-  // ── ES OAuth code path ───────────────────────────────────────────────────
-  if (!code)
-    return NextResponse.json({ error: 'code is required' }, { status: 400 });
+async function authorizeTenant(
+  db: AdminClient,
+  userId: string,
+  tenantSlug: string
+): Promise<{ tenant: TenantRow; isAdmin: boolean }> {
+  const { data: tenant, error } = await db
+    .from('crm_tenants')
+    .select('id, owner_user_id')
+    .eq('slug', tenantSlug)
+    .maybeSingle();
+  if (error) {
+    // A failed lookup is not the same as a missing tenant: report it as a
+    // server problem so a bad service key or missing grant is not hidden.
+    console.error('[embedded-signup] tenant lookup failed:', error.message);
+    throw new SignupError(`Could not load tenant: ${error.message}`, 500);
+  }
+  if (!tenant) throw new SignupError(`Tenant "${tenantSlug}" not found`, 404);
 
+  const isAdmin = await isPlatformAdmin(db, userId);
+  const allowed = canManageTenant({
+    isPlatformAdmin: isAdmin,
+    ownerUserId: tenant.owner_user_id,
+    userId,
+  });
+  if (!allowed) {
+    throw new SignupError('You are not allowed to connect this tenant', 403);
+  }
+  return { tenant, isAdmin };
+}
+
+/** Exchanges the Embedded Signup code (valid ~30s) for a business token. */
+async function exchangeCodeForToken(code: string): Promise<string> {
   const appId = process.env.META_APP_ID;
   const appSecret = process.env.META_APP_SECRET;
   if (!appId || !appSecret) {
-    return NextResponse.json(
-      { error: 'META_APP_ID or META_APP_SECRET not configured' },
-      { status: 500 }
-    );
+    throw new SignupError('META_APP_ID or META_APP_SECRET not configured', 500);
   }
 
-  // Exchange code for short-lived access token.
-  // Do NOT pass redirect_uri: for Embedded Signup popup flow (FB.login),
-  // the code was generated with Meta's internal xd_arbiter URI as redirect_uri.
-  // Passing our own domain here causes Meta to reject with a domain mismatch.
-  const tokenRes = await fetch(
-    `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}`,
-    { cache: 'no-store' }
+  // No redirect_uri: the FB.login popup flow issues the code against Meta's own
+  // internal redirect, and sending ours makes Meta reject the exchange.
+  const short = await graphGet<{ access_token?: string }>(
+    'oauth/access_token',
+    { client_id: appId, client_secret: appSecret, code }
   );
-  const tokenData = await tokenRes.json();
-  if (!tokenRes.ok || !tokenData.access_token) {
-    return NextResponse.json(
-      { error: tokenData.error?.message ?? 'Failed to exchange code' },
-      { status: 400 }
-    );
-  }
-  const shortToken: string = tokenData.access_token;
+  if (!short.access_token)
+    throw new SignupError('Failed to exchange code', 400);
 
-  // Upgrade the short-lived user token (~1 h) to a long-lived token (60 days)
-  // so stored credentials don't expire immediately after onboarding.
-  let longToken = shortToken;
   try {
-    const llRes = await fetch(
-      `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${shortToken}`,
-      { cache: 'no-store' }
-    );
-    const llData = await llRes.json();
-    if (llData.access_token) longToken = llData.access_token as string;
-  } catch {
-    // fall back to short-lived token
-  }
-
-  // ES v4: WABA/phone IDs come via postMessage (frontend) or session_info.
-  // Fallback: discover from Graph API using the short-lived token so the flow
-  // succeeds even when the postMessage event is dropped or delayed.
-  let wabaId: string = wabaIdFromSession ?? '';
-  let phoneNumberId: string = phoneNumberIdFromSession ?? '';
-
-  if (!wabaId) {
-    try {
-      const bizRes = await fetch(
-        'https://graph.facebook.com/v21.0/me/businesses?fields=whatsapp_business_accounts.limit(5){id,phone_numbers.limit(5){id}}&limit=5',
-        {
-          headers: { Authorization: `Bearer ${shortToken}` },
-          cache: 'no-store',
-        }
-      );
-      const bizData = await bizRes.json();
-      const firstWaba =
-        bizData?.data?.[0]?.whatsapp_business_accounts?.data?.[0];
-      if (firstWaba?.id) {
-        wabaId = firstWaba.id as string;
-        if (!phoneNumberId && firstWaba.phone_numbers?.data?.[0]?.id) {
-          phoneNumberId = firstWaba.phone_numbers.data[0].id as string;
-        }
+    const long = await graphGet<{ access_token?: string }>(
+      'oauth/access_token',
+      {
+        grant_type: 'fb_exchange_token',
+        client_id: appId,
+        client_secret: appSecret,
+        fb_exchange_token: short.access_token,
       }
-    } catch {
-      // discovery failed — fall through to the 400 below
+    );
+    return long.access_token ?? short.access_token;
+  } catch {
+    return short.access_token;
+  }
+}
+
+/** WABA ids Meta granted to this token, taken from `debug_token`. */
+async function grantedWabaIds(token: string): Promise<string[]> {
+  const appId = process.env.META_APP_ID!;
+  const appSecret = process.env.META_APP_SECRET!;
+  const { data } = await graphGet<{
+    data: {
+      is_valid: boolean;
+      app_id: string;
+      granular_scopes?: Array<{ scope: string; target_ids?: string[] }>;
+    };
+  }>('debug_token', {
+    input_token: token,
+    access_token: `${appId}|${appSecret}`,
+  });
+
+  if (!data.is_valid || data.app_id !== appId) {
+    throw new SignupError('The access token was not issued to this app', 400);
+  }
+  return (
+    data.granular_scopes
+      ?.filter(
+        (s) =>
+          s.scope === 'whatsapp_business_management' ||
+          s.scope === 'whatsapp_business_messaging'
+      )
+      .flatMap((s) => s.target_ids ?? []) ?? []
+  );
+}
+
+async function listPhoneNumberIds(
+  wabaId: string,
+  token: string
+): Promise<string[]> {
+  const { data } = await graphGet<{ data?: Array<{ id: string }> }>(
+    `${wabaId}/phone_numbers`,
+    { fields: 'id', limit: '50' },
+    token
+  );
+  return (data ?? []).map((p) => p.id);
+}
+
+async function resolvePhoneNumberId(
+  wabaId: string,
+  claimed: string,
+  token: string
+): Promise<string> {
+  const ids = await listPhoneNumberIds(wabaId, token);
+  if (claimed) {
+    if (!ids.includes(claimed)) {
+      throw new SignupError(
+        'The phone number does not belong to this WhatsApp Business Account',
+        400
+      );
+    }
+    return claimed;
+  }
+  if (ids.length === 1) return ids[0];
+  throw new SignupError(
+    ids.length === 0
+      ? 'No phone number was found on this WhatsApp Business Account'
+      : 'Several phone numbers were found; finish the signup again and select one',
+    400
+  );
+}
+
+/**
+ * Finds the WhatsApp Business Account that holds `phoneNumberId`.
+ *
+ * The id typed by an admin is tried first, then every account Meta says the
+ * token can reach. Business Settings lists several look-alike ids (messaging
+ * accounts, WhatsApp accounts), so a wrong guess must not fail the save: only
+ * an account that really lists the number is accepted.
+ */
+async function findWabaForPhone(
+  token: string,
+  claimedWabaId: string,
+  phoneNumberId: string
+): Promise<string> {
+  let granted: string[] = [];
+  try {
+    granted = await grantedWabaIds(token);
+  } catch (error) {
+    // A token from a different app would subscribe that app to the account,
+    // so webhooks would never reach us. Any other lookup failure is tolerated.
+    if (error instanceof SignupError && error.message.includes('not issued')) {
+      throw error;
     }
   }
 
-  if (!wabaId) {
-    return NextResponse.json(
-      {
-        error:
-          'Could not determine WABA ID — complete the WhatsApp Business signup and try again',
-      },
-      { status: 400 }
+  const candidates = Array.from(
+    new Set([claimedWabaId, ...granted].filter(Boolean))
+  );
+  // Keep what happened to each candidate so a failure explains itself instead
+  // of leaving the admin to guess (ids and Meta's own wording only, no secrets).
+  const attempts: string[] = [];
+  for (const wabaId of candidates) {
+    try {
+      const ids = await listPhoneNumberIds(wabaId, token);
+      if (ids.includes(phoneNumberId)) return wabaId;
+      attempts.push(`${wabaId}: lists ${ids.length} number(s), not this one`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'unreachable';
+      attempts.push(`${wabaId}: ${reason}`);
+    }
+  }
+  const tried =
+    attempts.length > 0
+      ? ` Tried: ${attempts.join(' | ')}`
+      : ' The token lists no accounts and none was typed.';
+  throw new SignupError(
+    'Could not find a WhatsApp Business Account holding this phone number. ' +
+      'Check that the token’s system user has Full control of the account that owns the number.' +
+      tried,
+    400
+  );
+}
+
+async function assertPhoneNotUsedElsewhere(
+  db: AdminClient,
+  phoneNumberId: string,
+  tenantId: string
+): Promise<void> {
+  const { data } = await db
+    .from('crm_tenants')
+    .select('id')
+    .eq('phone_number_id', phoneNumberId)
+    .neq('id', tenantId)
+    .maybeSingle();
+  if (data) {
+    throw new SignupError(
+      'This phone number is already connected to another tenant',
+      409
     );
   }
+}
 
-  // Encrypt token and persist
-  const encryptedToken = await encrypt(longToken);
-  const db = supabaseAdmin();
-  const { error: dbError } = await db
+/** Without this subscription Meta never delivers the customer's webhooks. */
+async function subscribeAppToWaba(
+  wabaId: string,
+  token: string
+): Promise<void> {
+  const res = await fetch(`${GRAPH_BASE_URL}/${wabaId}/subscribed_apps`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  const data = (await res.json()) as {
+    success?: boolean;
+    error?: { message?: string };
+  };
+  if (!res.ok || !data.success) {
+    throw new SignupError(
+      `Could not subscribe the app to the WhatsApp Business Account: ${data.error?.message ?? 'unknown error'}`,
+      502
+    );
+  }
+}
+
+async function connectTenant(
+  db: AdminClient,
+  params: {
+    tenant: TenantRow;
+    tenantSlug: string;
+    userId: string;
+    wabaId: string;
+    phoneNumberId: string;
+    token: string;
+    coexistence: boolean;
+    method: 'code' | 'direct_token';
+  }
+): Promise<void> {
+  const { tenant, tenantSlug, userId, wabaId, phoneNumberId, token } = params;
+
+  const { error } = await db
     .from('crm_tenants')
     .update({
       waba_id: wabaId,
       phone_number_id: phoneNumberId,
-      access_token_enc: encryptedToken,
+      access_token_enc: await encrypt(token),
       status: 'active',
-      ...(ownerUserId ? { owner_user_id: ownerUserId } : {}),
+      // Never replace an existing owner: only claim an unowned tenant.
+      owner_user_id: tenant.owner_user_id ?? userId,
     })
     .eq('slug', tenantSlug);
-
-  if (dbError)
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+  if (error) throw new SignupError(error.message, 500);
 
   await db.from('embedded_signup_events').insert({
-    event_type: 'completed',
+    tenant_id: tenant.id,
+    event_type: params.coexistence ? 'completed_coexistence' : 'completed',
     waba_id: wabaId,
     phone_number_id: phoneNumberId,
-    raw_payload: { wabaId, phoneNumberId },
+    raw_payload: { method: params.method, connectedBy: userId },
   });
+}
 
-  return NextResponse.json({ wabaId, phoneNumberId });
+async function connectWithCode(
+  db: AdminClient,
+  body: SignupBody,
+  tenantSlug: string,
+  userId: string,
+  tenant: TenantRow
+) {
+  const token = await exchangeCodeForToken(body.code!);
+  const assets = resolveSignupAssets({
+    claimedWabaId: body.wabaId?.trim() ?? '',
+    grantedWabaIds: await grantedWabaIds(token),
+  });
+  if (!assets.ok) throw new SignupError(assets.error, 400);
+
+  const phoneNumberId = await resolvePhoneNumberId(
+    assets.wabaId,
+    body.phoneNumberId?.trim() ?? '',
+    token
+  );
+  await assertPhoneNotUsedElsewhere(db, phoneNumberId, tenant.id);
+  await subscribeAppToWaba(assets.wabaId, token);
+
+  const coexistence = body.coexistence === true;
+  await connectTenant(db, {
+    tenant,
+    tenantSlug,
+    userId,
+    wabaId: assets.wabaId,
+    phoneNumberId,
+    token,
+    coexistence,
+    method: 'code',
+  });
+  return { wabaId: assets.wabaId, phoneNumberId, coexistence };
+}
+
+async function connectWithDirectToken(
+  db: AdminClient,
+  body: SignupBody,
+  tenantSlug: string,
+  userId: string,
+  tenant: TenantRow
+) {
+  const claimedPhone = body.phoneNumberId?.trim() ?? '';
+  if (!claimedPhone) {
+    throw new SignupError('phoneNumberId is required with a direct token', 400);
+  }
+  const token = body.accessToken!.trim();
+  const wabaId = await findWabaForPhone(
+    token,
+    body.wabaId?.trim() ?? '',
+    claimedPhone
+  );
+  const phoneNumberId = await resolvePhoneNumberId(wabaId, claimedPhone, token);
+  await assertPhoneNotUsedElsewhere(db, phoneNumberId, tenant.id);
+  await subscribeAppToWaba(wabaId, token);
+
+  await connectTenant(db, {
+    tenant,
+    tenantSlug,
+    userId,
+    wabaId,
+    phoneNumberId,
+    token,
+    coexistence: false,
+    method: 'direct_token',
+  });
+  return { wabaId, phoneNumberId, coexistence: false };
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const userId = await getSessionUserId(req);
+    if (!userId) throw new SignupError('Unauthorized', 401);
+
+    const body = (await req.json().catch(() => null)) as SignupBody | null;
+    if (!body?.tenantSlug) throw new SignupError('tenantSlug is required', 400);
+
+    const db = supabaseAdmin();
+    const { tenant, isAdmin } = await authorizeTenant(
+      db,
+      userId,
+      body.tenantSlug
+    );
+
+    if (body.accessToken && !body.code) {
+      if (!isAdmin) {
+        throw new SignupError(
+          'Only platform admins can connect with a raw token',
+          403
+        );
+      }
+      return NextResponse.json(
+        await connectWithDirectToken(db, body, body.tenantSlug, userId, tenant)
+      );
+    }
+
+    if (!body.code) throw new SignupError('code is required', 400);
+    return NextResponse.json(
+      await connectWithCode(db, body, body.tenantSlug, userId, tenant)
+    );
+  } catch (error) {
+    if (error instanceof SignupError) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: error.status }
+      );
+    }
+    console.error('[embedded-signup] unexpected failure:', error);
+    return NextResponse.json({ error: 'Signup failed' }, { status: 500 });
+  }
 }

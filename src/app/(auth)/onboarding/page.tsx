@@ -6,6 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { MessageSquare, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
+import { GRAPH_VERSION } from '@/lib/whatsapp/meta-config';
+import {
+  buildLoginExtras,
+  parseEmbeddedSignupMessage,
+} from '@/lib/whatsapp/embedded-signup';
 
 declare global {
   interface Window {
@@ -34,11 +39,16 @@ interface SignupResult {
   phoneNumberId: string;
 }
 
-// ES v4 sends WABA/phone IDs via postMessage before the FB.login callback fires.
-interface EsMessageData {
-  type: string;
-  event: string;
-  data?: { waba_id?: string; phone_number_id?: string };
+// Coexistence (connect an existing WhatsApp Business app number) is on unless
+// explicitly disabled, matching the Embedded Signup configuration in Meta.
+const COEXISTENCE_ENABLED =
+  process.env.NEXT_PUBLIC_META_COEXISTENCE !== 'false';
+
+// ES v4 posts the signup assets to the window; the FB.login callback carries the code.
+interface EsAssets {
+  wabaId?: string;
+  phoneNumberId?: string;
+  coexistence?: boolean;
 }
 
 function OnboardingContent() {
@@ -49,7 +59,7 @@ function OnboardingContent() {
   const [errorMsg, setErrorMsg] = useState('');
   const fbLoaded = useRef(false);
   // Captures WABA/phone IDs from the ES v4 postMessage event.
-  const esData = useRef<{ waba_id?: string; phone_number_id?: string }>({});
+  const esData = useRef<EsAssets>({});
   // Manual credentials form state (fallback when META_CONFIG_ID is absent)
   const [manualFields, setManualFields] = useState({
     wabaId: '',
@@ -68,7 +78,7 @@ function OnboardingContent() {
         appId: metaAppId,
         cookie: true,
         xfbml: true,
-        version: 'v21.0',
+        version: GRAPH_VERSION,
       });
     };
     const s = document.createElement('script');
@@ -81,29 +91,25 @@ function OnboardingContent() {
 
   useEffect(() => {
     const handler = (event: MessageEvent) => {
-      // Meta uses several subdomains (www, web, static.xx.fbcdn.net, etc.)
-      if (
-        !event.origin.includes('facebook.com') &&
-        !event.origin.includes('fbcdn.net')
-      )
+      // Accepts only https origins ending in facebook.com, as Meta documents.
+      const msg = parseEmbeddedSignupMessage(event.origin, event.data);
+      if (!msg) return;
+
+      if (msg.kind === 'finish') {
+        esData.current = {
+          wabaId: msg.wabaId,
+          phoneNumberId: msg.phoneNumberId,
+          coexistence: msg.coexistence,
+        };
         return;
-      try {
-        const msg = (
-          typeof event.data === 'string' ? JSON.parse(event.data) : event.data
-        ) as EsMessageData;
-        if (
-          msg.type === 'WA_EMBEDDED_SIGNUP' &&
-          msg.event === 'FINISH' &&
-          msg.data
-        ) {
-          esData.current = {
-            waba_id: msg.data.waba_id,
-            phone_number_id: msg.data.phone_number_id,
-          };
-        }
-      } catch {
-        // ignore non-JSON messages
       }
+      if (msg.kind === 'cancel') {
+        setStep('idle');
+        toast.error('Signup cancelled');
+        return;
+      }
+      setErrorMsg(msg.message ?? 'WhatsApp signup failed');
+      setStep('error');
     };
     window.addEventListener('message', handler);
     return () => window.removeEventListener('message', handler);
@@ -162,16 +168,10 @@ function OnboardingContent() {
           }
           setStep('saving');
 
-          // ES v4: WABA/phone IDs come from the postMessage event (esData.current).
-          // ES v3 fallback: they come from session_info in the authResponse.
-          const sessionInfo = (response.authResponse as Record<string, unknown>)
-            .session_info as
-            | { waba_id?: string; phone_number_id?: string }
-            | undefined;
-
-          const wabaId = esData.current.waba_id ?? sessionInfo?.waba_id;
-          const phoneNumberId =
-            esData.current.phone_number_id ?? sessionInfo?.phone_number_id;
+          // ES v4: WABA/phone IDs come from the postMessage event. They are
+          // only a claim: the server verifies them against what Meta granted
+          // to the token, and discovers them itself if the event was missed.
+          const { wabaId, phoneNumberId, coexistence } = esData.current;
 
           try {
             const res = await fetch('/api/whatsapp/embedded-signup', {
@@ -182,6 +182,7 @@ function OnboardingContent() {
                 tenantSlug,
                 wabaId,
                 phoneNumberId,
+                coexistence: coexistence ?? false,
               }),
             });
             const data = await res.json();
@@ -204,12 +205,7 @@ function OnboardingContent() {
         config_id: metaConfigId,
         response_type: 'code',
         override_default_response_type: true,
-        extras: {
-          setup: {},
-          featureType: '',
-          sessionInfoVersion: '3',
-          version: 'v4',
-        },
+        extras: buildLoginExtras(COEXISTENCE_ENABLED),
       }
     );
   };

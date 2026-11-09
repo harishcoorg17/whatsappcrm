@@ -119,8 +119,18 @@ export default function TenantsPage() {
 
   const saveCredentials = async () => {
     if (!editCreds) return;
-    if (!editCreds.wabaId.trim() || !editCreds.phoneNumberId.trim()) {
-      toast.error('WABA ID and Phone Number ID are required');
+    // With a token the server finds the WhatsApp Business Account itself, so
+    // only the phone number id is needed. Without one, both ids are required.
+    const hasToken = editCreds.accessToken.trim().length > 0;
+    if (
+      !editCreds.phoneNumberId.trim() ||
+      (!hasToken && !editCreds.wabaId.trim())
+    ) {
+      toast.error(
+        hasToken
+          ? 'Phone Number ID is required'
+          : 'WABA ID and Phone Number ID are required'
+      );
       return;
     }
     setSavingCreds(true);
@@ -141,14 +151,15 @@ export default function TenantsPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          // Fall through to direct DB update if the API fails
-          console.warn('ES API failed, updating directly:', data.error);
-        } else {
-          toast.success('Credentials saved and encrypted');
-          setEditCreds(null);
-          load();
+          // No fallback to a direct write: that would mark the tenant active
+          // with IDs Meta never verified and no stored token.
+          toast.error(data.error ?? 'Could not verify these credentials');
           return;
         }
+        toast.success('Credentials saved and encrypted');
+        setEditCreds(null);
+        load();
+        return;
       }
       // Direct update for waba_id / phone_number_id without token
       const { error } = await supabase
@@ -156,14 +167,16 @@ export default function TenantsPage() {
         .update({
           waba_id: editCreds.wabaId.trim(),
           phone_number_id: editCreds.phoneNumberId.trim(),
-          status: 'active',
         })
         .eq('id', editCreds.tenantId);
       if (error) {
         toast.error(error.message);
         return;
       }
-      toast.success('Credentials updated');
+      // Without a token nothing is verified or subscribed, so the tenant must
+      // not be marked active: it could not send, and the webhook would drop
+      // its inbound messages.
+      toast.warning('IDs saved. Add an access token to activate this tenant.');
       setEditCreds(null);
       load();
     } finally {
