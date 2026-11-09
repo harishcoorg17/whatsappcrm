@@ -5,7 +5,11 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Throttle } from '@/lib/utils/throttle';
-import type { ParallelBroadcastConfig, BroadcastRecipientWithParams } from '@/types';
+import { GRAPH_BASE_URL } from './meta-config';
+import type {
+  ParallelBroadcastConfig,
+  BroadcastRecipientWithParams,
+} from '@/types';
 
 interface SendResult {
   phone: string;
@@ -47,7 +51,9 @@ export class ParallelBroadcastSender {
     failed: number;
     results: SendResult[];
   }> {
-    console.log(`🚀 Starting parallel broadcast to ${recipients.length} recipients`);
+    console.log(
+      `🚀 Starting parallel broadcast to ${recipients.length} recipients`
+    );
 
     const results: SendResult[] = [];
     let successCount = 0;
@@ -155,14 +161,12 @@ export class ParallelBroadcastSender {
         );
 
         // Save to broadcast_recipients
-        await this.supabase
-          .from('broadcast_recipients')
-          .insert({
-            broadcast_id: broadcastId,
-            phone_number: recipient.phone,
-            status: 'sent',
-            whatsapp_message_id: messageId,
-          });
+        await this.supabase.from('broadcast_recipients').insert({
+          broadcast_id: broadcastId,
+          phone_number: recipient.phone,
+          status: 'sent',
+          whatsapp_message_id: messageId,
+        });
 
         console.log(`✅ Sent to ${recipient.phone}`);
 
@@ -180,14 +184,13 @@ export class ParallelBroadcastSender {
 
           // Save failed status
           try {
-            await this.supabase
-              .from('broadcast_recipients')
-              .insert({
-                broadcast_id: broadcastId,
-                phone_number: recipient.phone,
-                status: 'failed',
-                error_message: error instanceof Error ? error.message : String(error),
-              });
+            await this.supabase.from('broadcast_recipients').insert({
+              broadcast_id: broadcastId,
+              phone_number: recipient.phone,
+              status: 'failed',
+              error_message:
+                error instanceof Error ? error.message : String(error),
+            });
           } catch {
             // Ignore save errors
           }
@@ -200,7 +203,7 @@ export class ParallelBroadcastSender {
           };
         } else {
           // Wait before retry
-          await new Promise(resolve =>
+          await new Promise((resolve) =>
             setTimeout(resolve, this.retryDelaySeconds * 1000)
           );
         }
@@ -225,11 +228,11 @@ export class ParallelBroadcastSender {
     templateLanguage: string
   ): Promise<string> {
     const response = await fetch(
-      `https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`,
+      `${GRAPH_BASE_URL}/${config.phone_number_id}/messages`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${config.access_token}`,
+          Authorization: `Bearer ${config.access_token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -241,12 +244,18 @@ export class ParallelBroadcastSender {
             language: {
               code: templateLanguage,
             },
-            components: recipient.params.length > 0 ? [
-              {
-                type: 'body',
-                parameters: recipient.params.map(p => ({ type: 'text', text: p })),
-              },
-            ] : undefined,
+            components:
+              recipient.params.length > 0
+                ? [
+                    {
+                      type: 'body',
+                      parameters: recipient.params.map((p) => ({
+                        type: 'text',
+                        text: p,
+                      })),
+                    },
+                  ]
+                : undefined,
           },
         }),
       }
@@ -267,18 +276,30 @@ export class ParallelBroadcastSender {
 /**
  * Helper to validate parallel config
  */
-export function validateParallelConfig(config: ParallelBroadcastConfig): string[] {
+export function validateParallelConfig(
+  config: ParallelBroadcastConfig
+): string[] {
   const errors: string[] = [];
 
-  if (config.concurrent_workers && (config.concurrent_workers < 1 || config.concurrent_workers > 10)) {
+  if (
+    config.concurrent_workers &&
+    (config.concurrent_workers < 1 || config.concurrent_workers > 10)
+  ) {
     errors.push('concurrent_workers must be between 1 and 10');
   }
 
-  if (config.delay_between_sends_ms && (config.delay_between_sends_ms < 100 || config.delay_between_sends_ms > 5000)) {
+  if (
+    config.delay_between_sends_ms &&
+    (config.delay_between_sends_ms < 100 ||
+      config.delay_between_sends_ms > 5000)
+  ) {
     errors.push('delay_between_sends_ms must be between 100 and 5000ms');
   }
 
-  if (config.max_retries && (config.max_retries < 0 || config.max_retries > 3)) {
+  if (
+    config.max_retries &&
+    (config.max_retries < 0 || config.max_retries > 3)
+  ) {
     errors.push('max_retries must be between 0 and 3');
   }
 
