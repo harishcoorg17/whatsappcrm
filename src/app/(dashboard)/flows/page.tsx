@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Workflow,
   Plus,
@@ -16,9 +16,9 @@ import {
   HelpCircle,
   UserPlus,
   FileText,
-} from "lucide-react";
+} from 'lucide-react';
 
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -26,10 +26,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 /**
  * Flows list page.
@@ -43,8 +43,12 @@ interface FlowRow {
   id: string;
   name: string;
   description: string | null;
-  status: "draft" | "active" | "archived";
-  trigger_type: "keyword" | "first_inbound_message" | "manual";
+  status: 'draft' | 'active' | 'archived';
+  trigger_type:
+    | 'keyword'
+    | 'first_inbound_message'
+    | 'returning_customer'
+    | 'manual';
   trigger_config: { keywords?: string[] } | Record<string, unknown>;
   execution_count: number;
   last_executed_at: string | null;
@@ -52,23 +56,23 @@ interface FlowRow {
   updated_at: string;
 }
 
-const STATUS_LABELS: Record<FlowRow["status"], string> = {
-  draft: "Draft",
-  active: "Active",
-  archived: "Archived",
+const STATUS_LABELS: Record<FlowRow['status'], string> = {
+  draft: 'Draft',
+  active: 'Active',
+  archived: 'Archived',
 };
 
-const STATUS_COLORS: Record<FlowRow["status"], string> = {
-  draft: "border-slate-700 bg-slate-800 text-slate-300",
-  active: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
-  archived: "border-slate-700 bg-slate-800/50 text-slate-500",
+const STATUS_COLORS: Record<FlowRow['status'], string> = {
+  draft: 'border-slate-700 bg-slate-800 text-slate-300',
+  active: 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300',
+  archived: 'border-slate-700 bg-slate-800/50 text-slate-500',
 };
 
 interface TemplateSummary {
   slug: string;
   name: string;
   description: string;
-  icon: "MessageSquare" | "HelpCircle" | "UserPlus";
+  icon: 'MessageSquare' | 'HelpCircle' | 'UserPlus';
   trigger_type: string;
   node_count: number;
 }
@@ -84,7 +88,7 @@ export default function FlowsPage() {
   const [flows, setFlows] = useState<FlowRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
 
@@ -93,8 +97,8 @@ export default function FlowsPage() {
     (async () => {
       try {
         const [flowsRes, tmplRes] = await Promise.all([
-          fetch("/api/flows"),
-          fetch("/api/flows/templates"),
+          fetch('/api/flows'),
+          fetch('/api/flows/templates'),
         ]);
         if (!flowsRes.ok) {
           throw new Error(`Failed to load flows: ${flowsRes.status}`);
@@ -127,19 +131,19 @@ export default function FlowsPage() {
     if (!newName.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch("/api/flows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newName.trim(),
-          trigger_type: "keyword",
+          trigger_type: 'keyword',
           trigger_config: { keywords: [] },
         }),
       });
       if (!res.ok) throw new Error(`Create failed: ${res.status}`);
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);
-      setNewName("");
+      setNewName('');
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {
       console.error(err);
@@ -152,9 +156,9 @@ export default function FlowsPage() {
   async function handleUseTemplate(slug: string) {
     setCreating(true);
     try {
-      const res = await fetch("/api/flows", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/api/flows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_slug: slug }),
       });
       if (!res.ok) {
@@ -165,7 +169,7 @@ export default function FlowsPage() {
       setCreateOpen(false);
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Clone failed";
+      const msg = err instanceof Error ? err.message : 'Clone failed';
       toast.error(msg);
     } finally {
       setCreating(false);
@@ -174,14 +178,14 @@ export default function FlowsPage() {
 
   async function handleDelete(flow: FlowRow) {
     const yes = window.confirm(
-      `Delete "${flow.name}"? Any active runs will end immediately.`,
+      `Delete "${flow.name}"? Any active runs will end immediately.`
     );
     if (!yes) return;
     try {
-      const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/flows/${flow.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
-      toast.success("Flow deleted.");
+      toast.success('Flow deleted.');
     } catch (err) {
       console.error(err);
       toast.error("Couldn't delete flow.");
@@ -202,7 +206,7 @@ export default function FlowsPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold text-white">Flows</h1>
-            <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
+            <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-300 uppercase">
               Beta
             </span>
           </div>
@@ -237,7 +241,7 @@ export default function FlowsPage() {
             `sm:max-w-sm` baked into its default classes. Without the
             sm: prefix our override applies at base only and the
             sm-scoped 384px wins at every real desktop breakpoint. */}
-        <DialogContent className="sm:max-w-4xl bg-slate-900 text-slate-100">
+        <DialogContent className="bg-slate-900 text-slate-100 sm:max-w-4xl">
           <DialogHeader>
             <DialogTitle>Create a new flow</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -247,7 +251,7 @@ export default function FlowsPage() {
 
           {templates.length > 0 && (
             <div className="space-y-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">
+              <p className="text-xs tracking-wide text-slate-500 uppercase">
                 Start from a template
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -259,9 +263,9 @@ export default function FlowsPage() {
                       type="button"
                       onClick={() => handleUseTemplate(t.slug)}
                       disabled={creating}
-                      className="flex flex-col gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-4 text-left transition-colors hover:border-primary/40 hover:bg-slate-800 disabled:opacity-50"
+                      className="hover:border-primary/40 flex flex-col gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-4 text-left transition-colors hover:bg-slate-800 disabled:opacity-50"
                     >
-                      <Icon className="h-5 w-5 text-primary" />
+                      <Icon className="text-primary h-5 w-5" />
                       <span className="text-sm font-semibold text-white">
                         {t.name}
                       </span>
@@ -269,7 +273,7 @@ export default function FlowsPage() {
                         {t.description}
                       </span>
                       <span className="mt-auto border-t border-slate-800 pt-2 text-[11px] text-slate-500">
-                        {t.node_count} {t.node_count === 1 ? "node" : "nodes"}
+                        {t.node_count} {t.node_count === 1 ? 'node' : 'nodes'}
                       </span>
                     </button>
                   );
@@ -279,7 +283,7 @@ export default function FlowsPage() {
           )}
 
           <div className="space-y-2 border-t border-slate-800 pt-4">
-            <p className="text-xs uppercase tracking-wide text-slate-500">
+            <p className="text-xs tracking-wide text-slate-500 uppercase">
               Or start blank
             </p>
             <Input
@@ -288,7 +292,7 @@ export default function FlowsPage() {
               placeholder="e.g. Welcome menu"
               className="bg-slate-800"
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleCreate();
+                if (e.key === 'Enter') handleCreate();
               }}
             />
           </div>
@@ -301,7 +305,10 @@ export default function FlowsPage() {
             >
               Cancel
             </Button>
-            <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
+            <Button
+              onClick={handleCreate}
+              disabled={!newName.trim() || creating}
+            >
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}
               Create blank flow
             </Button>
@@ -318,9 +325,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-800">
         <Workflow className="h-6 w-6 text-slate-500" />
       </div>
-      <h2 className="mt-4 text-base font-medium text-white">
-        No flows yet
-      </h2>
+      <h2 className="mt-4 text-base font-medium text-white">No flows yet</h2>
       <p className="mt-1 max-w-md text-sm text-slate-400">
         Build your first conversation — a welcome menu, an order lookup, an FAQ
         bot. Customers tap buttons; the bot routes them to the right answer (or
@@ -345,16 +350,16 @@ function FlowCard({
 }) {
   const triggerSummary = describeTrigger(flow);
   const StatusIcon =
-    flow.status === "active"
+    flow.status === 'active'
       ? PlayCircle
-      : flow.status === "archived"
+      : flow.status === 'archived'
         ? Archive
         : PauseCircle;
   return (
-    <div className="flex flex-col glass-card p-4 transition-all hover:border-slate-700">
+    <div className="glass-card flex flex-col p-4 transition-all hover:border-slate-700">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Workflow className="h-4 w-4 shrink-0 text-primary" />
+          <Workflow className="text-primary h-4 w-4 shrink-0" />
           <h3 className="truncate text-sm font-semibold text-white">
             {flow.name}
           </h3>
@@ -362,8 +367,8 @@ function FlowCard({
         <Badge
           variant="outline"
           className={cn(
-            "shrink-0 gap-1 text-[10px]",
-            STATUS_COLORS[flow.status],
+            'shrink-0 gap-1 text-[10px]',
+            STATUS_COLORS[flow.status]
           )}
         >
           <StatusIcon className="h-3 w-3" />
@@ -378,7 +383,7 @@ function FlowCard({
       <div className="mt-4 flex items-center gap-3 text-[11px] text-slate-500">
         <span className="inline-flex items-center gap-1">
           <MessageSquare className="h-3 w-3" />
-          {flow.execution_count} {flow.execution_count === 1 ? "run" : "runs"}
+          {flow.execution_count} {flow.execution_count === 1 ? 'run' : 'runs'}
         </span>
       </div>
 
@@ -402,15 +407,18 @@ function FlowCard({
 }
 
 function describeTrigger(flow: FlowRow): string {
-  if (flow.trigger_type === "keyword") {
+  if (flow.trigger_type === 'keyword') {
     const keywords = Array.isArray(flow.trigger_config.keywords)
       ? (flow.trigger_config.keywords as string[])
       : [];
-    if (keywords.length === 0) return "Triggers on keyword (none set)";
-    return `Triggers on: ${keywords.join(", ")}`;
+    if (keywords.length === 0) return 'Triggers on keyword (none set)';
+    return `Triggers on: ${keywords.join(', ')}`;
   }
-  if (flow.trigger_type === "first_inbound_message") {
+  if (flow.trigger_type === 'first_inbound_message') {
     return "Triggers on a contact's first-ever inbound message";
   }
-  return "Manual trigger";
+  if (flow.trigger_type === 'returning_customer') {
+    return 'Triggers when a returning customer messages again';
+  }
+  return 'Manual trigger';
 }

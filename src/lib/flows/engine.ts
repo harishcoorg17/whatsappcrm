@@ -47,6 +47,12 @@ import {
 } from './http-fetch';
 import { loadTenantApiBase, publicHostGuard } from './tenant-api';
 import {
+  evaluateReturningCustomer,
+  pickEntryFlow,
+  type EntryFlowCandidate,
+  type EntryFlowChoice,
+} from './entry-flow';
+import {
   type CollectInputNodeConfig,
   type ConditionNodeConfig,
   type DispatchInboundInput,
@@ -319,8 +325,9 @@ async function findEntryFlow(
   db: AdminClient,
   userId: string,
   message: ParsedInbound,
-  isFirstInbound: boolean
-): Promise<FlowRow | null> {
+  isFirstInbound: boolean,
+  who: { conversationId: string; contactId: string }
+): Promise<EntryFlowChoice<FlowRow> | null> {
   // Only text messages can match an entry trigger. Interactive replies
   // are responses to existing prompts; they never start a new flow.
   if (message.kind !== 'text') return null;
@@ -336,26 +343,24 @@ async function findEntryFlow(
     .order('created_at', { ascending: true });
   if (error || !flows) return null;
 
-  const typed = flows as FlowRow[];
-  for (const flow of typed) {
-    if (flow.trigger_type === 'keyword') {
-      if (
-        matchesKeywordTrigger(
-          message.text,
-          flow.trigger_config as KeywordTriggerConfig
-        )
-      ) {
-        return flow;
-      }
-    } else if (
-      flow.trigger_type === 'first_inbound_message' &&
-      isFirstInbound
-    ) {
-      return flow;
-    }
-    // 'manual' triggers do not auto-start from inbound messages.
-  }
-  return null;
+  // Precedence (see entry-flow.ts): an explicit keyword, then the
+  // returning-customer flow when the backend knows this customer's bookings,
+  // then the first-message flow. 'manual' flows never auto-start.
+  const typed = flows as unknown as Array<FlowRow & EntryFlowCandidate>;
+  return pickEntryFlow({
+    flows: typed,
+    text: message.text,
+    isFirstInbound,
+    matchesKeyword: (text, config) =>
+      matchesKeywordTrigger(text, config as unknown as KeywordTriggerConfig),
+    resolveReturning: (flow) =>
+      evaluateReturningCustomer({
+        db,
+        config: flow.trigger_config as unknown as Record<string, unknown>,
+        conversationId: who.conversationId,
+        contactId: who.contactId,
+      }),
+  });
 }
 
 // ============================================================
@@ -917,17 +922,19 @@ export async function dispatchInboundToFlows(
     }
 
     // No active run → look for a flow whose entry trigger matches.
-    const flow = await findEntryFlow(
+    const chosen = await findEntryFlow(
       db,
       input.userId,
       input.message,
-      input.isFirstInboundMessage
+      input.isFirstInboundMessage,
+      { conversationId: input.conversationId, contactId: input.contactId }
     );
-    if (!flow || !flow.entry_node_id) {
+    const flow = chosen?.flow;
+    if (!chosen || !flow || !flow.entry_node_id) {
       return { consumed: false, outcome: 'no_match' };
     }
     const nodes = await loadAllNodes(db, flow.id);
-    return startNewRun(db, flow, input, nodes);
+    return startNewRun(db, flow, input, nodes, chosen.initialVars);
   } catch (err) {
     console.error(
       '[flows] dispatchInboundToFlows threw:',
@@ -1107,7 +1114,8 @@ async function startNewRun(
   db: AdminClient,
   flow: FlowRow,
   input: DispatchInboundInput,
-  nodes: Map<string, FlowNodeRow>
+  nodes: Map<string, FlowNodeRow>,
+  initialVars?: Record<string, string>
 ): Promise<DispatchInboundResult> {
   // INSERT — partial unique index `idx_one_active_run_per_contact`
   // catches concurrent inserts with 23505. We catch and return as
@@ -1121,6 +1129,9 @@ async function startNewRun(
       conversation_id: input.conversationId,
       status: 'active',
       current_node_key: flow.entry_node_id,
+      // Customer and booking details for a returning-customer flow, so its
+      // messages can say {{vars.booking_title}} from the first node on.
+      ...(initialVars ? { vars: initialVars } : {}),
     })
     .select('*')
     .maybeSingle();

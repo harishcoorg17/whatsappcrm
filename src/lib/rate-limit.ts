@@ -136,6 +136,10 @@ export const RATE_LIMITS = {
   /** Self-serve workspace creation. Idempotent per user, so a low cap
    *  only guards against scripted hammering. */
   tenantSelf: { limit: 10, windowMs: 60_000 },
+  /** Server-to-server template sends, per API key. 120/min is two a second
+   *  sustained: plenty for booking events, low enough to stop a runaway
+   *  loop in the calling system from flooding customers. */
+  integrationSend: { limit: 120, windowMs: 60_000 },
 } as const;
 
 /** Test-only helper. Clears the in-memory state so unit tests don't

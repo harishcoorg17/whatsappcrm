@@ -32,6 +32,8 @@ interface Tenant {
   waba_id: string | null;
   phone_number_id: string | null;
   data_api_url: string | null;
+  /** Whether an integration key is saved (the key itself is never loaded). */
+  has_api_key: boolean;
   created_at: string;
 }
 
@@ -76,7 +78,7 @@ export default function TenantsPage() {
     const { data, error } = await supabase
       .from('crm_tenants')
       .select(
-        'id,slug,name,status,plan,waba_id,phone_number_id,data_api_url,created_at'
+        'id,slug,name,status,plan,waba_id,phone_number_id,data_api_url,api_key_set_at:data_api_config->>api_key_set_at,created_at'
       )
       .order('created_at', { ascending: false });
     if (error) {
@@ -84,7 +86,15 @@ export default function TenantsPage() {
       setLoading(false);
       return;
     }
-    setTenants(data ?? []);
+    setTenants(
+      (data ?? []).map(
+        ({ api_key_set_at, ...tenant }: Record<string, unknown>) =>
+          ({
+            ...tenant,
+            has_api_key: Boolean(api_key_set_at),
+          }) as unknown as Tenant
+      )
+    );
 
     // Best effort: without it the phone-sync button just stays hidden.
     const { data: events } = await supabase
@@ -460,10 +470,12 @@ export default function TenantsPage() {
       <DataApiDialog
         tenant={apiTenant}
         onClose={() => setApiTenant(null)}
-        onSaved={(slug, dataApiUrl) =>
+        onSaved={(slug, dataApiUrl, hasApiKey) =>
           setTenants((current) =>
             current.map((t) =>
-              t.slug === slug ? { ...t, data_api_url: dataApiUrl } : t
+              t.slug === slug
+                ? { ...t, data_api_url: dataApiUrl, has_api_key: hasApiKey }
+                : t
             )
           )
         }

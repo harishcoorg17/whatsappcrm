@@ -30,6 +30,9 @@ import {
   MAX_CAPTURES,
 } from './http-fetch';
 
+/** A month: beyond this a "returning" gap is surely a typo. */
+const MAX_RETURNING_GAP_HOURS = 720;
+
 const CAPTURE_VAR_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const CAPTURE_FIELD_PATH = /^[a-zA-Z0-9_.]+$/;
 
@@ -75,7 +78,11 @@ export interface ValidationIssue {
 
 interface FlowInput {
   name: string;
-  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
+  trigger_type:
+    | 'keyword'
+    | 'first_inbound_message'
+    | 'returning_customer'
+    | 'manual';
   trigger_config: Record<string, unknown>;
   entry_node_id: string | null;
 }
@@ -209,6 +216,32 @@ function validateTrigger(
           message: `${blanks} keyword${blanks === 1 ? ' is' : 's are'} blank — they won't match anything.`,
         });
       }
+    }
+  }
+  if (trigger_type === 'returning_customer') {
+    const gap = trigger_config.min_gap_hours;
+    if (
+      gap !== undefined &&
+      (typeof gap !== 'number' ||
+        !Number.isFinite(gap) ||
+        gap < 0 ||
+        gap > MAX_RETURNING_GAP_HOURS)
+    ) {
+      issues.push({
+        severity: 'error',
+        scope: 'trigger',
+        field: 'trigger_config.min_gap_hours',
+        message: `Hours of silence must be a number from 0 to ${MAX_RETURNING_GAP_HOURS}.`,
+      });
+    }
+    const requiresBooking = trigger_config.requires_booking;
+    if (requiresBooking !== undefined && typeof requiresBooking !== 'boolean') {
+      issues.push({
+        severity: 'error',
+        scope: 'trigger',
+        field: 'trigger_config.requires_booking',
+        message: '"Only if they have a booking" must be on or off.',
+      });
     }
   }
   // first_inbound_message / manual have no config; nothing to validate.

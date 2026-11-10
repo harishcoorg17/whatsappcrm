@@ -176,7 +176,7 @@ export function captureFromFirstItem(
 }
 
 /** Reads a body up to `maxBytes`; null means it was larger than allowed. */
-async function readCapped(
+export async function readCapped(
   res: Response,
   maxBytes: number
 ): Promise<string | null> {

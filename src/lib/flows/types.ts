@@ -232,12 +232,26 @@ export type FlowNodeType = FlowNodeConfig['node_type'];
 // Triggers (matches `flows.trigger_type` + `trigger_config`)
 // ============================================================
 
-export interface KeywordTriggerConfig {
+// A type alias (not an interface) so a trigger config is usable wherever a
+// plain key-value record is expected.
+export type KeywordTriggerConfig = {
   /** One or more keywords. Match is case-insensitive by default. */
   keywords: string[];
   match_type?: 'exact' | 'contains';
   case_sensitive?: boolean;
-}
+};
+
+/**
+ * Starts for a customer the tenant's backend recognises (looked up by phone).
+ * The run is seeded with their details as variables: customer_first_name,
+ * booking_title, booking_dates, payment_text, amount_due, and so on.
+ */
+export type ReturningCustomerTriggerConfig = {
+  /** Hours of silence before a message counts as a new visit. Default 12. */
+  min_gap_hours?: number;
+  /** Only start when the customer has a booking. Default true. */
+  requires_booking?: boolean;
+};
 
 // No knobs in v1 — the trigger has a single semantic. Kept as a type
 // alias (not an empty interface) for forward compat without tripping
@@ -247,6 +261,10 @@ export type FirstInboundTriggerConfig = Record<string, never>;
 export type FlowTriggerConfig =
   | { trigger_type: 'keyword'; config: KeywordTriggerConfig }
   | { trigger_type: 'first_inbound_message'; config: FirstInboundTriggerConfig }
+  | {
+      trigger_type: 'returning_customer';
+      config: ReturningCustomerTriggerConfig;
+    }
   | { trigger_type: 'manual'; config: Record<string, never> };
 
 // ============================================================
@@ -259,7 +277,11 @@ export interface FlowRow {
   name: string;
   description: string | null;
   status: 'draft' | 'active' | 'archived';
-  trigger_type: 'keyword' | 'first_inbound_message' | 'manual';
+  trigger_type:
+    | 'keyword'
+    | 'first_inbound_message'
+    | 'returning_customer'
+    | 'manual';
   trigger_config:
     | KeywordTriggerConfig
     | FirstInboundTriggerConfig

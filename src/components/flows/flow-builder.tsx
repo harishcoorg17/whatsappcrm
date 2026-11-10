@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Linear-list flow editor.
@@ -17,7 +17,7 @@
  * are list-only and have no canvas analogue.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CircleAlert,
   Plus,
@@ -25,39 +25,36 @@ import {
   ChevronDown,
   ChevronUp,
   CornerDownRight,
-} from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
-import { type ValidationIssue } from "@/lib/flows/validate";
+} from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { type ValidationIssue } from '@/lib/flows/validate';
 import {
   NODE_META,
   slugify,
   summarizeNode,
   type BuilderNode,
   type NodeType,
-} from "./shared";
-import { NodeConfigForm } from "./forms/node-config-form";
-import { NodeKeySelect } from "./forms/fields";
-import { IssueLine } from "./validation-panel";
-import {
-  useFlowEditor,
-  type BuilderState,
-} from "./flow-editor-state";
+} from './shared';
+import { NodeConfigForm } from './forms/node-config-form';
+import { NodeKeySelect } from './forms/fields';
+import { IssueLine } from './validation-panel';
+import { useFlowEditor, type BuilderState } from './flow-editor-state';
 
 // ============================================================
 // Local state shape — mirrors the DB but the configs are typed
@@ -85,7 +82,7 @@ export function FlowBuilder() {
   // jump-to-node. The flash itself is read from context (flashKey)
   // so canvas + list share the same source of truth.
   const [expanded, setExpanded] = useState<Set<string>>(
-    () => new Set(state.nodes.map((n) => n.node_key)),
+    () => new Set(state.nodes.map((n) => n.node_key))
   );
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
@@ -97,7 +94,7 @@ export function FlowBuilder() {
       const key = addNodeCtx(type);
       setExpanded((prev) => new Set([...prev, key]));
     },
-    [addNodeCtx],
+    [addNodeCtx]
   );
 
   const removeNode = useCallback(
@@ -109,7 +106,7 @@ export function FlowBuilder() {
         return next;
       });
     },
-    [removeNodeCtx],
+    [removeNodeCtx]
   );
 
   const toggleExpanded = useCallback((key: string) => {
@@ -126,7 +123,7 @@ export function FlowBuilder() {
       if (el) nodeRefs.current.set(key, el);
       else nodeRefs.current.delete(key);
     },
-    [],
+    []
   );
 
   // React to validator jumps via the shared flashKey. We DERIVE the
@@ -145,7 +142,7 @@ export function FlowBuilder() {
     // committed any expand-induced layout shift.
     requestAnimationFrame(() => {
       const el = nodeRefs.current.get(flashKey);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
   }, [flashKey]);
 
@@ -154,7 +151,7 @@ export function FlowBuilder() {
       <TriggerPanel
         state={state}
         setState={setState}
-        triggerIssues={issues.filter((i) => i.scope === "trigger")}
+        triggerIssues={issues.filter((i) => i.scope === 'trigger')}
       />
 
       <EntryPicker state={state} setState={setState} />
@@ -169,9 +166,9 @@ export function FlowBuilder() {
 
         {state.nodes.length === 0 ? (
           <div className="rounded-lg border border-dashed border-slate-700 bg-slate-900/50 p-8 text-center text-sm text-slate-400">
-            Add a <strong>Start</strong> node, then a <strong>Send buttons</strong>
-            {" "}node, then a <strong>Handoff</strong> — that&apos;s the welcome-menu
-            shape from the brief.
+            Add a <strong>Start</strong> node, then a{' '}
+            <strong>Send buttons</strong> node, then a <strong>Handoff</strong>{' '}
+            — that&apos;s the welcome-menu shape from the brief.
           </div>
         ) : (
           state.nodes.map((node) => (
@@ -184,7 +181,7 @@ export function FlowBuilder() {
               isFlashed={flashKey === node.node_key}
               cardRef={setNodeRef(node.node_key)}
               issues={issues.filter(
-                (i) => i.scope === "node" && i.node_key === node.node_key,
+                (i) => i.scope === 'node' && i.node_key === node.node_key
               )}
               onToggle={() => toggleExpanded(node.node_key)}
               onUpdate={(patch) => updateNode(node.node_key, patch)}
@@ -200,7 +197,6 @@ export function FlowBuilder() {
     </div>
   );
 }
-
 
 // ============================================================
 // Trigger panel
@@ -226,9 +222,13 @@ function TriggerPanel({
             onValueChange={(v) =>
               setState((s) => ({
                 ...s,
-                trigger_type: v as BuilderState["trigger_type"],
+                trigger_type: v as BuilderState['trigger_type'],
                 trigger_config:
-                  v === "keyword" ? { keywords: [] } : v === "manual" ? {} : {},
+                  v === 'keyword'
+                    ? { keywords: [] }
+                    : v === 'returning_customer'
+                      ? { min_gap_hours: 12, requires_booking: true }
+                      : {},
               }))
             }
           >
@@ -242,13 +242,59 @@ function TriggerPanel({
               <SelectItem value="first_inbound_message">
                 Customer&apos;s first ever inbound message
               </SelectItem>
+              <SelectItem value="returning_customer">
+                A returning customer messages again
+              </SelectItem>
               <SelectItem value="manual">
                 Manual only (no auto-trigger)
               </SelectItem>
             </SelectContent>
           </Select>
         </div>
-        {state.trigger_type === "keyword" && (
+        {state.trigger_type === 'returning_customer' && (
+          <div className="space-y-2">
+            <label className="mb-1 block text-xs text-slate-400">
+              Hours of silence before greeting again
+            </label>
+            <Input
+              type="number"
+              min={0}
+              max={720}
+              value={
+                typeof state.trigger_config.min_gap_hours === 'number'
+                  ? state.trigger_config.min_gap_hours
+                  : 12
+              }
+              onChange={(e) =>
+                setState((s) => ({
+                  ...s,
+                  trigger_config: {
+                    ...s.trigger_config,
+                    min_gap_hours: Number(e.target.value),
+                  },
+                }))
+              }
+              className="bg-slate-800"
+            />
+            <label className="flex items-center gap-2 text-xs text-slate-300">
+              <input
+                type="checkbox"
+                checked={state.trigger_config.requires_booking !== false}
+                onChange={(e) =>
+                  setState((s) => ({
+                    ...s,
+                    trigger_config: {
+                      ...s.trigger_config,
+                      requires_booking: e.target.checked,
+                    },
+                  }))
+                }
+              />
+              Only if they have a booking
+            </label>
+          </div>
+        )}
+        {state.trigger_type === 'keyword' && (
           <div>
             <label className="mb-1 block text-xs text-slate-400">
               Keywords (comma-separated)
@@ -256,8 +302,8 @@ function TriggerPanel({
             <Input
               value={
                 Array.isArray(state.trigger_config.keywords)
-                  ? (state.trigger_config.keywords as string[]).join(", ")
-                  : ""
+                  ? (state.trigger_config.keywords as string[]).join(', ')
+                  : ''
               }
               onChange={(e) =>
                 setState((s) => ({
@@ -265,7 +311,7 @@ function TriggerPanel({
                   trigger_config: {
                     ...s.trigger_config,
                     keywords: e.target.value
-                      .split(",")
+                      .split(',')
                       .map((k) => k.trim())
                       .filter(Boolean),
                   },
@@ -302,16 +348,14 @@ function EntryPicker({
   if (state.nodes.length === 0) return null;
   return (
     <section className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900 p-3">
-      <CornerDownRight className="h-4 w-4 shrink-0 text-primary" />
+      <CornerDownRight className="text-primary h-4 w-4 shrink-0" />
       <span className="text-xs text-slate-400">Entry node:</span>
       <NodeKeySelect
         value={state.entry_node_id}
         nodes={state.nodes}
-        onChange={(key) =>
-          setState((s) => ({ ...s, entry_node_id: key }))
-        }
+        onChange={(key) => setState((s) => ({ ...s, entry_node_id: key }))}
         placeholder="Pick the first node…"
-        className="flex-1 max-w-xs"
+        className="max-w-xs flex-1"
       />
     </section>
   );
@@ -349,20 +393,19 @@ function NodeCard({
   onSetEntry: () => void;
 }) {
   const meta = NODE_META[node.node_type];
-  const hasError = issues.some((i) => i.severity === "error");
+  const hasError = issues.some((i) => i.severity === 'error');
   const preview = summarizeNode(node);
   return (
     <div
       ref={cardRef}
       className={cn(
-        "rounded-lg border bg-slate-900 transition-shadow duration-500",
+        'rounded-lg border bg-slate-900 transition-shadow duration-500',
         hasError
-          ? "border-red-500/40"
+          ? 'border-red-500/40'
           : isEntry
-            ? "border-primary/50"
-            : "border-slate-800",
-        isFlashed &&
-          "ring-2 ring-primary ring-offset-2 ring-offset-slate-950",
+            ? 'border-primary/50'
+            : 'border-slate-800',
+        isFlashed && 'ring-primary ring-2 ring-offset-2 ring-offset-slate-950'
       )}
     >
       <button
@@ -370,7 +413,7 @@ function NodeCard({
         onClick={onToggle}
         className="flex w-full items-center gap-3 px-4 py-3 text-left"
       >
-        <meta.icon className={cn("h-4 w-4 shrink-0", meta.color)} />
+        <meta.icon className={cn('h-4 w-4 shrink-0', meta.color)} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-white">
@@ -382,16 +425,14 @@ function NodeCard({
             {isEntry && (
               <Badge
                 variant="outline"
-                className="border-primary/40 bg-primary/10 text-[10px] text-primary"
+                className="border-primary/40 bg-primary/10 text-primary text-[10px]"
               >
                 Entry
               </Badge>
             )}
           </div>
           {!expanded && preview && (
-            <p className="mt-0.5 truncate text-xs text-slate-500">
-              {preview}
-            </p>
+            <p className="mt-0.5 truncate text-xs text-slate-500">{preview}</p>
           )}
         </div>
         {hasError && (
@@ -461,7 +502,7 @@ function NodeConfigWithAdvanced({
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const hasReplyIds =
-    node.node_type === "send_buttons" || node.node_type === "send_list";
+    node.node_type === 'send_buttons' || node.node_type === 'send_list';
   return (
     <div className="flex flex-col gap-3">
       <NodeConfigForm
@@ -481,7 +522,7 @@ function NodeConfigWithAdvanced({
           ) : (
             <ChevronDown className="h-3 w-3" />
           )}
-          {showAdvanced ? "Hide" : "Show"} advanced
+          {showAdvanced ? 'Hide' : 'Show'} advanced
         </button>
         {showAdvanced && (
           <div className="mt-3 flex flex-col gap-3">
@@ -500,8 +541,8 @@ function NodeConfigWithAdvanced({
             {hasReplyIds && (
               <p className="text-[10px] text-slate-500">
                 Reply IDs for each option are shown inline above. They&apos;re
-                returned by WhatsApp when a customer taps; you usually don&apos;t
-                need to touch them.
+                returned by WhatsApp when a customer taps; you usually
+                don&apos;t need to touch them.
               </p>
             )}
           </div>
@@ -511,24 +552,23 @@ function NodeConfigWithAdvanced({
   );
 }
 
-
 // ============================================================
 // Add-node menu
 // ============================================================
 
 function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
   const types: NodeType[] = [
-    "start",
-    "send_buttons",
-    "send_list",
-    "send_message",
-    "send_media",
-    "collect_input",
-    "condition",
-    "http_fetch",
-    "set_tag",
-    "handoff",
-    "end",
+    'start',
+    'send_buttons',
+    'send_list',
+    'send_message',
+    'send_media',
+    'collect_input',
+    'condition',
+    'http_fetch',
+    'set_tag',
+    'handoff',
+    'end',
   ];
   return (
     <DropdownMenu>
@@ -539,12 +579,15 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
         <Plus className="h-3.5 w-3.5" />
         Add node
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="border-slate-700 bg-slate-900">
+      <DropdownMenuContent
+        align="end"
+        className="border-slate-700 bg-slate-900"
+      >
         {types.map((t) => {
           const meta = NODE_META[t];
           return (
             <DropdownMenuItem key={t} onClick={() => onAdd(t)}>
-              <meta.icon className={cn("h-3.5 w-3.5", meta.color)} />
+              <meta.icon className={cn('h-3.5 w-3.5', meta.color)} />
               {meta.label}
             </DropdownMenuItem>
           );
@@ -553,4 +596,3 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     </DropdownMenu>
   );
 }
-

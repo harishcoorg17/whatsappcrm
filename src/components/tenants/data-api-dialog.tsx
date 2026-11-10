@@ -25,6 +25,8 @@ export interface DataApiTenant {
   slug: string;
   name: string;
   data_api_url: string | null;
+  /** Whether an integration key is saved. The key itself is never sent here. */
+  has_api_key: boolean;
 }
 
 export function DataApiDialog({
@@ -34,14 +36,22 @@ export function DataApiDialog({
 }: {
   tenant: DataApiTenant | null;
   onClose: () => void;
-  onSaved: (slug: string, dataApiUrl: string | null) => void;
+  onSaved: (
+    slug: string,
+    dataApiUrl: string | null,
+    hasApiKey: boolean
+  ) => void;
 }) {
   const [value, setValue] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [removeKey, setRemoveKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setValue(tenant?.data_api_url ?? '');
+    setApiKey('');
+    setRemoveKey(false);
     setError(null);
   }, [tenant]);
 
@@ -62,15 +72,24 @@ export function DataApiDialog({
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: value }),
+          body: JSON.stringify({
+            url: value,
+            ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
+            ...(removeKey ? { clear_api_key: true } : {}),
+          }),
         }
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Could not save');
       toast.success(
-        data.data_api_url ? 'API address saved' : 'API address cleared'
+        data.data_api_url ? 'API settings saved' : 'API address cleared'
       );
-      onSaved(tenant.slug, data.data_api_url ?? null);
+      setApiKey('');
+      onSaved(
+        tenant.slug,
+        data.data_api_url ?? null,
+        Boolean(data.has_api_key)
+      );
       onClose();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Could not save');
@@ -109,6 +128,47 @@ export function DataApiDialog({
               Must be https with a public domain name (no IP address, port or
               login in the address). Leave empty to turn it off.
             </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>
+              Integration key{' '}
+              <span className="text-xs text-slate-500">
+                (optional — stored encrypted)
+              </span>
+            </Label>
+            <Input
+              type="password"
+              autoComplete="off"
+              value={apiKey}
+              onChange={(e) => {
+                setApiKey(e.target.value);
+                if (e.target.value) setRemoveKey(false);
+              }}
+              placeholder={
+                tenant?.has_api_key
+                  ? 'A key is saved. Type a new one to replace it.'
+                  : 'Shared secret from your backend'
+              }
+              className="border-slate-700 bg-slate-900 font-mono text-sm"
+            />
+            <p className="text-[11px] leading-relaxed text-slate-500">
+              Sent to your backend as <code>x-integration-key</code> so the CRM
+              can look up a customer&apos;s bookings when they message. It is
+              never shown again after saving.
+            </p>
+            {tenant?.has_api_key && (
+              <label className="flex items-center gap-2 text-xs text-slate-400">
+                <input
+                  type="checkbox"
+                  checked={removeKey}
+                  onChange={(e) => {
+                    setRemoveKey(e.target.checked);
+                    if (e.target.checked) setApiKey('');
+                  }}
+                />
+                Remove the saved key
+              </label>
+            )}
             {error && <p className="text-xs text-red-400">{error}</p>}
           </div>
           <div className="flex justify-end gap-2 pt-2">
