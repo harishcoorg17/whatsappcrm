@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { decrypt } from '@/lib/whatsapp/encryption';
+import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
 import { GRAPH_BASE_URL } from '@/lib/whatsapp/meta-config';
 import { normalizeStatus } from '@/lib/whatsapp/template-status-normalize';
 import type { TemplateButton, TemplateSampleValues } from '@/types';
@@ -137,13 +137,11 @@ export async function POST() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: config, error: configError } = await supabase
-      .from('whatsapp_config')
-      .select('*')
-      .eq('user_id', user.id)
-      .single();
+    // A number connected through Tenants lives on crm_tenants; older installs
+    // use the per-user whatsapp_config row. The loader handles both.
+    const credentials = await loadWhatsAppCredentials(supabase, user.id);
 
-    if (configError || !config) {
+    if (!credentials) {
       return NextResponse.json(
         {
           error:
@@ -153,7 +151,7 @@ export async function POST() {
       );
     }
 
-    if (!config.waba_id) {
+    if (!credentials.wabaId) {
       return NextResponse.json(
         {
           error:
@@ -163,11 +161,11 @@ export async function POST() {
       );
     }
 
-    const accessToken = decrypt(config.access_token);
+    const { accessToken, wabaId } = credentials;
 
     const metaTemplates: MetaTemplate[] = [];
     let nextUrl: string | null =
-      `${META_API_BASE}/${config.waba_id}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score`;
+      `${META_API_BASE}/${wabaId}/message_templates?limit=100&fields=id,name,language,status,category,components,quality_score`;
     const PAGE_CAP = 20;
     let pageCount = 0;
 
