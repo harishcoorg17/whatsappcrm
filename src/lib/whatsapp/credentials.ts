@@ -99,6 +99,27 @@ async function loadLegacyCredentials(
   };
 }
 
+/**
+ * Credentials for the number a conversation belongs to. Automated senders
+ * (flows, automations) know the conversation but not its tenant, and one user
+ * can own several tenants, so the tenant is read from the conversation rather
+ * than guessed from the user.
+ */
+export async function loadCredentialsForConversation(
+  supabase: SupabaseClient,
+  userId: string,
+  conversationId: string
+): Promise<WhatsAppCredentials | null> {
+  const { data } = await supabase
+    .from('conversations')
+    .select('tenant_id')
+    .eq('id', conversationId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  const tenantId = (data as { tenant_id: string | null } | null)?.tenant_id;
+  return loadWhatsAppCredentials(supabase, userId, tenantId ?? null);
+}
+
 export async function loadWhatsAppCredentials(
   supabase: SupabaseClient,
   userId: string,
