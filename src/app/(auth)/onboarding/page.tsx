@@ -53,7 +53,13 @@ interface EsAssets {
 
 function OnboardingContent() {
   const params = useSearchParams();
-  const tenantSlug = params.get('tenant') ?? '';
+  const tenantParam = params.get('tenant') ?? '';
+  // Self-serve users arrive without ?tenant=; their own workspace is looked
+  // up (or created on first visit) through /api/tenants/self.
+  const [ownTenantSlug, setOwnTenantSlug] = useState('');
+  const [tenantError, setTenantError] = useState('');
+  const tenantSlug = tenantParam || ownTenantSlug;
+  const isSelfServe = tenantParam === '';
   const [step, setStep] = useState<Step>('idle');
   const [result, setResult] = useState<SignupResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -69,6 +75,29 @@ function OnboardingContent() {
 
   const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID ?? '';
   const metaConfigId = process.env.NEXT_PUBLIC_META_CONFIG_ID ?? '';
+
+  useEffect(() => {
+    if (!isSelfServe) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/tenants/self', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok)
+          throw new Error(data.error ?? 'Could not set up workspace');
+        if (!cancelled) setOwnTenantSlug(data.slug);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setTenantError(
+            e instanceof Error ? e.message : 'Could not set up workspace'
+          );
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSelfServe]);
 
   useEffect(() => {
     if (fbLoaded.current || !metaAppId) return;
@@ -210,6 +239,30 @@ function OnboardingContent() {
     );
   };
 
+  if (isSelfServe && !tenantSlug) {
+    return (
+      <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        {tenantError ? (
+          <div className="space-y-4 text-center">
+            <AlertCircle className="mx-auto h-8 w-8 text-red-400" />
+            <p className="text-sm text-slate-400">{tenantError}</p>
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+              className="w-full"
+            >
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
       {step === 'done' && result ? (
@@ -237,10 +290,10 @@ function OnboardingContent() {
             </div>
           </div>
           <a
-            href="/tenants"
+            href={isSelfServe ? '/dashboard' : '/tenants'}
             className="bg-primary hover:bg-primary/90 block w-full rounded-lg px-4 py-2 text-center text-sm font-medium text-white transition-colors"
           >
-            Back to Tenants
+            {isSelfServe ? 'Go to dashboard' : 'Back to Tenants'}
           </a>
         </div>
       ) : step === 'error' ? (
