@@ -63,6 +63,9 @@ export default function TenantsPage() {
   const [editCreds, setEditCreds] = useState<EditCreds | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
+  // Tenants connected through WhatsApp coexistence, which can import phone data.
+  const [coexistenceIds, setCoexistenceIds] = useState<Set<string>>(new Set());
+  const [syncingPhoneSlug, setSyncingPhoneSlug] = useState<string | null>(null);
   const supabase = createClient();
 
   const load = useCallback(async () => {
@@ -77,6 +80,15 @@ export default function TenantsPage() {
       return;
     }
     setTenants(data ?? []);
+
+    // Best effort: without it the phone-sync button just stays hidden.
+    const { data: events } = await supabase
+      .from('embedded_signup_events')
+      .select('tenant_id')
+      .eq('event_type', 'completed_coexistence');
+    setCoexistenceIds(
+      new Set((events ?? []).map((e: { tenant_id: string }) => e.tenant_id))
+    );
     setLoading(false);
   }, [supabase]);
 
@@ -233,6 +245,52 @@ export default function TenantsPage() {
     }
   };
 
+  const callPhoneSync = async (slug: string, sync: 'contacts' | 'history') => {
+    const res = await fetch('/api/whatsapp/coexistence-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantSlug: slug, sync }),
+    });
+    const data = await res.json();
+    return {
+      ok: res.ok,
+      status: res.status,
+      error: data.error as string | undefined,
+    };
+  };
+
+  // Meta allows each import once, contacts first, within 24 hours of connecting.
+  const syncPhoneData = async (t: Tenant) => {
+    const proceed = window.confirm(
+      `Import the WhatsApp Business app contacts and chat history for ${t.name}?\n\n` +
+        'Meta allows this only ONCE, within 24 hours of connecting this number, and it cannot be repeated. ' +
+        'Keep the WhatsApp Business app open on the phone until it finishes.'
+    );
+    if (!proceed) return;
+
+    setSyncingPhoneSlug(t.slug);
+    try {
+      // 409 means that step was already requested, so carry on to the next.
+      const contacts = await callPhoneSync(t.slug, 'contacts');
+      if (!contacts.ok && contacts.status !== 409) {
+        toast.error(contacts.error ?? 'Could not request the contacts sync');
+        return;
+      }
+      const history = await callPhoneSync(t.slug, 'history');
+      if (!history.ok && history.status !== 409) {
+        toast.error(history.error ?? 'Could not request the history sync');
+        return;
+      }
+      toast.success(
+        'Sync requested. Contacts and chats will arrive over the next few minutes.'
+      );
+    } catch {
+      toast.error('Could not reach the server');
+    } finally {
+      setSyncingPhoneSlug(null);
+    }
+  };
+
   const toggleStatus = async (t: Tenant) => {
     const next = t.status === 'active' ? 'suspended' : 'active';
     const { error } = await supabase
@@ -358,6 +416,17 @@ export default function TenantsPage() {
                       className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white disabled:opacity-50"
                     >
                       {syncingSlug === t.slug ? 'Checking…' : 'Fix webhook'}
+                    </button>
+                  )}
+                  {coexistenceIds.has(t.id) && (
+                    <button
+                      onClick={() => syncPhoneData(t)}
+                      disabled={syncingPhoneSlug === t.slug}
+                      className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white disabled:opacity-50"
+                    >
+                      {syncingPhoneSlug === t.slug
+                        ? 'Requesting…'
+                        : 'Sync phone data'}
                     </button>
                   )}
                   <button
