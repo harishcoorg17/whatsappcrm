@@ -10,6 +10,8 @@ import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
 } from '@/lib/whatsapp/template-webhook';
+import { isCoexistenceField } from '@/lib/whatsapp/coexistence-events';
+import { handleCoexistenceChange } from '@/lib/whatsapp/coexistence-store';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -259,6 +261,18 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           { field: change.field, value: change.value as unknown },
           supabaseAdmin()
         );
+        continue;
+      }
+
+      // Coexistence: messages sent from the WhatsApp Business app, the
+      // one-time history import and the phone's contacts. They carry their
+      // own payload shapes, so they never reach the inbound-message code.
+      if (isCoexistenceField(change.field)) {
+        const summary = await handleCoexistenceChange(supabaseAdmin(), {
+          field: change.field,
+          value: change.value as unknown,
+        });
+        console.log('[webhook] coexistence', JSON.stringify(summary));
         continue;
       }
 
