@@ -1,11 +1,6 @@
 import Link from 'next/link';
 import { Check, MessageCircle } from 'lucide-react';
-import {
-  BENEFITS,
-  COMPARISON,
-  EASE_POINTS,
-  HOW_IT_WORKS,
-} from './content';
+import { BENEFITS, COMPARISON, EASE_POINTS, HOW_IT_WORKS } from './content';
 
 const PRIMARY_BUTTON =
   'inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]';
@@ -23,14 +18,14 @@ function SectionHeading({
 }) {
   return (
     <div className="mx-auto max-w-2xl text-center">
-      <p className="text-sm font-semibold uppercase tracking-wider text-primary">
+      <p className="text-primary text-sm font-semibold tracking-wider uppercase">
         {eyebrow}
       </p>
       <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
         {title}
       </h2>
       {lead ? (
-        <p className="mt-4 text-base text-muted-foreground">{lead}</p>
+        <p className="text-muted-foreground mt-4 text-base">{lead}</p>
       ) : null}
     </div>
   );
@@ -38,10 +33,10 @@ function SectionHeading({
 
 export function LandingHeader() {
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
+    <header className="border-border bg-background/80 sticky top-0 z-30 border-b backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <MessageCircle className="size-5 text-primary" aria-hidden />
+          <MessageCircle className="text-primary size-5" aria-hidden />
           Novacompass WhatsApp CRM
         </Link>
         <nav className="flex items-center gap-2">
@@ -64,10 +59,10 @@ export function Hero() {
         Run your customer chats on{' '}
         <span className="text-primary">WhatsApp</span>, as a team
       </h1>
-      <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+      <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-lg">
         A shared inbox, lead pipelines, broadcasts and automations for your
-        business number. Connect it yourself in a few minutes, with no code
-        and no developer.
+        business number. Connect it yourself in a few minutes, with no code and
+        no developer.
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
         <Link href="/signup" className={PRIMARY_BUTTON}>
@@ -92,13 +87,13 @@ export function HowItWorks() {
         {HOW_IT_WORKS.map((step, index) => (
           <li
             key={step.title}
-            className="rounded-xl border border-border bg-card p-6"
+            className="border-border bg-card rounded-xl border p-6"
           >
-            <span className="flex size-9 items-center justify-center rounded-full bg-[var(--primary-soft-2)] text-sm font-bold text-primary">
+            <span className="text-primary flex size-9 items-center justify-center rounded-full bg-[var(--primary-soft-2)] text-sm font-bold">
               {index + 1}
             </span>
             <h3 className="mt-4 font-semibold">{step.title}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{step.body}</p>
+            <p className="text-muted-foreground mt-2 text-sm">{step.body}</p>
           </li>
         ))}
       </ol>
@@ -117,11 +112,11 @@ export function Benefits() {
         {BENEFITS.map(({ icon: Icon, title, body }) => (
           <div
             key={title}
-            className="rounded-xl border border-border bg-card p-6"
+            className="border-border bg-card rounded-xl border p-6"
           >
-            <Icon className="size-6 text-primary" aria-hidden />
+            <Icon className="text-primary size-6" aria-hidden />
             <h3 className="mt-4 font-semibold">{title}</h3>
-            <p className="mt-2 text-sm text-muted-foreground">{body}</p>
+            <p className="text-muted-foreground mt-2 text-sm">{body}</p>
           </div>
         ))}
       </div>
@@ -137,7 +132,7 @@ export function Comparison() {
         title="Official, safe and made for many businesses"
         lead="Many WhatsApp tools take shortcuts to get you connected. We use the official route and keep every business separate."
       />
-      <div className="mt-12 overflow-x-auto rounded-xl border border-border">
+      <div className="border-border mt-12 overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[34rem] text-left text-sm">
           <caption className="sr-only">
             Typical WhatsApp tools compared with Novacompass WhatsApp CRM
@@ -150,18 +145,18 @@ export function Comparison() {
               <th scope="col" className="px-4 py-3 font-medium">
                 Typical tools
               </th>
-              <th scope="col" className="px-4 py-3 font-medium text-primary">
+              <th scope="col" className="text-primary px-4 py-3 font-medium">
                 Novacompass
               </th>
             </tr>
           </thead>
           <tbody>
             {COMPARISON.map((row) => (
-              <tr key={row.topic} className="border-t border-border">
+              <tr key={row.topic} className="border-border border-t">
                 <th scope="row" className="px-4 py-4 font-medium">
                   {row.topic}
                 </th>
-                <td className="px-4 py-4 text-muted-foreground">
+                <td className="text-muted-foreground px-4 py-4">
                   {row.typical}
                 </td>
                 <td className="px-4 py-4">{row.ours}</td>
@@ -177,7 +172,7 @@ export function Comparison() {
 export function Ease() {
   return (
     <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
-      <div className="rounded-2xl border border-border bg-card p-8 sm:p-12">
+      <div className="border-border bg-card rounded-2xl border p-8 sm:p-12">
         <SectionHeading
           eyebrow="Easy for clients"
           title="If you can sign in to Facebook, you can connect"
@@ -187,14 +182,14 @@ export function Ease() {
           {EASE_POINTS.map((point) => (
             <li key={point} className="flex items-start gap-3">
               <Check
-                className="mt-0.5 size-5 shrink-0 text-primary"
+                className="text-primary mt-0.5 size-5 shrink-0"
                 aria-hidden
               />
               <span>{point}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-8 text-center text-sm text-muted-foreground">
+        <p className="text-muted-foreground mt-8 text-center text-sm">
           You’ll need a Facebook account that can manage your Meta Business
           portfolio, and a phone number to connect.
         </p>
@@ -220,7 +215,7 @@ export function FinalCta() {
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-border py-8 text-center text-sm text-muted-foreground">
+    <footer className="border-border text-muted-foreground border-t py-8 text-center text-sm">
       © {new Date().getFullYear()} Novacompass WhatsApp CRM
     </footer>
   );
