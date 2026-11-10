@@ -6,6 +6,10 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Throttle } from '@/lib/utils/throttle';
 import { GRAPH_BASE_URL } from './meta-config';
+import {
+  loadWhatsAppCredentials,
+  type WhatsAppCredentials,
+} from './credentials';
 import type {
   ParallelBroadcastConfig,
   BroadcastRecipientWithParams,
@@ -23,6 +27,11 @@ export class ParallelBroadcastSender {
   private throttle: Throttle;
   private maxRetries: number;
   private retryDelaySeconds: number;
+  // One lookup per user per broadcast, shared by every recipient's send.
+  private credentialsByUser = new Map<
+    string,
+    Promise<WhatsAppCredentials | null>
+  >();
 
   constructor(
     private supabase: SupabaseClient,
@@ -141,20 +150,19 @@ export class ParallelBroadcastSender {
   ): Promise<SendResult> {
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        // Get WhatsApp config
-        const { data: config, error: configError } = await this.supabase
-          .from('whatsapp_config')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
+        // Tenant connection first, legacy per-user config as the fallback.
+        const credentials = await this.credentialsFor(userId);
 
-        if (configError || !config) {
+        if (!credentials) {
           throw new Error('WhatsApp config not found');
         }
 
         // Send via Meta API
         const messageId = await this.sendViaMetaAPI(
-          config,
+          {
+            phone_number_id: credentials.phoneNumberId,
+            access_token: credentials.accessToken,
+          },
           recipient,
           templateName,
           templateLanguage
@@ -221,8 +229,17 @@ export class ParallelBroadcastSender {
   /**
    * Send message via Meta WhatsApp Cloud API
    */
+  private credentialsFor(userId: string): Promise<WhatsAppCredentials | null> {
+    let lookup = this.credentialsByUser.get(userId);
+    if (!lookup) {
+      lookup = loadWhatsAppCredentials(this.supabase, userId);
+      this.credentialsByUser.set(userId, lookup);
+    }
+    return lookup;
+  }
+
   private async sendViaMetaAPI(
-    config: any,
+    config: { phone_number_id: string; access_token: string },
     recipient: BroadcastRecipientWithParams,
     templateName: string,
     templateLanguage: string

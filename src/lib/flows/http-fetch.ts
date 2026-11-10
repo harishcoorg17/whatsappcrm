@@ -27,6 +27,8 @@ const DEFAULT_TIMEOUT_MS = 5_000;
 const DEFAULT_MAX_BYTES = 256 * 1024;
 const DEFAULT_MAX_ITEMS = 5;
 const HARD_MAX_ITEMS = 10;
+export const MAX_CAPTURES = 5;
+const VAR_KEY_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 // WhatsApp text bodies cap at 4096 characters; leave room for surrounding copy.
 const MAX_RENDERED_CHARS = 3_500;
 
@@ -103,6 +105,30 @@ function asDisplayText(value: unknown): string {
   return '';
 }
 
+/**
+ * Fills `{{item.field}}` placeholders from one item, line by line. A line whose
+ * fields are ALL empty is left out, so a missing "Best time" never shows as a
+ * bare label. Lines with no fields at all (spacing) and lines with at least
+ * one filled field are kept as written.
+ */
+function renderTemplate(template: string, item: unknown): string {
+  return template
+    .split('\n')
+    .map((line) => {
+      let fields = 0;
+      let filled = 0;
+      const rendered = line.replace(ITEM_PLACEHOLDER, (_, path: string) => {
+        const value = asDisplayText(getByPath(item, path));
+        fields += 1;
+        if (value !== '') filled += 1;
+        return value;
+      });
+      return fields > 0 && filled === 0 ? null : rendered;
+    })
+    .filter((line): line is string => line !== null)
+    .join('\n');
+}
+
 export function renderItems(
   body: unknown,
   config: Pick<
@@ -120,15 +146,33 @@ export function renderItems(
   );
   const lines = items
     .slice(0, limit)
-    .map((item) =>
-      config.item_template.replace(ITEM_PLACEHOLDER, (_, path: string) =>
-        asDisplayText(getByPath(item, path))
-      )
-    );
+    .map((item) => renderTemplate(config.item_template, item));
   return {
     text: lines.join('\n').slice(0, MAX_RENDERED_CHARS),
     count: lines.length,
   };
+}
+
+/**
+ * Values of `capture` fields from the first item, as strings. When there is no
+ * first item every captured variable is set to '' so a stale value from an
+ * earlier lookup can never be reused by mistake.
+ */
+export function captureFromFirstItem(
+  body: unknown,
+  config: Pick<HttpFetchConfig, 'items_path' | 'capture'>
+): Record<string, string> {
+  const items = getByPath(body, config.items_path ?? '');
+  const first = Array.isArray(items) ? items[0] : undefined;
+  const captured: Record<string, string> = {};
+  const entries = Object.entries(config.capture ?? {})
+    .filter(([key]) => VAR_KEY_PATTERN.test(key))
+    .slice(0, MAX_CAPTURES);
+  for (const [key, path] of entries) {
+    captured[key] =
+      first === undefined ? '' : asDisplayText(getByPath(first, path));
+  }
+  return captured;
 }
 
 /** Reads a body up to `maxBytes`; null means it was larger than allowed. */
@@ -235,7 +279,12 @@ export async function runHttpFetch(params: {
     const { text, count } = renderItems(parsed, config);
     return {
       ok: true,
-      vars: { [config.save_as]: text, [`${config.save_as}_count`]: count },
+      // Captures first: the rendered text and count always win a name clash.
+      vars: {
+        ...captureFromFirstItem(parsed, config),
+        [config.save_as]: text,
+        [`${config.save_as}_count`]: count,
+      },
     };
   } catch {
     return { ok: false, reason: 'request_failed' };

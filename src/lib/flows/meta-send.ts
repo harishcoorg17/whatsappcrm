@@ -8,6 +8,7 @@ import {
   type MediaKind,
 } from '@/lib/whatsapp/meta-api';
 import { loadCredentialsForConversation } from '@/lib/whatsapp/credentials';
+import { describeInteractiveMessage } from './interactive-text';
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -411,11 +412,27 @@ async function sendInteractiveViaMeta(
   // We do NOT set interactive_reply_id here — that column is reserved
   // for the customer's tap on this message, populated by the webhook
   // when their reply arrives.
+  // Save the options with the body so an agent can see what was offered; the
+  // conversation-list preview below keeps using the body alone.
+  const storedText = describeInteractiveMessage(
+    input.kind === 'buttons'
+      ? {
+          kind: 'buttons',
+          bodyText: input.bodyText,
+          buttons: input.buttons,
+        }
+      : {
+          kind: 'list',
+          bodyText: input.bodyText,
+          buttonLabel: input.buttonLabel,
+          sections: input.sections,
+        }
+  );
   const { error: msgErr } = await db.from('messages').insert({
     conversation_id: input.conversationId,
     sender_type: 'bot',
     content_type: 'interactive',
-    content_text: input.bodyText,
+    content_text: storedText,
     message_id: waMessageId,
     status: 'sent',
   });

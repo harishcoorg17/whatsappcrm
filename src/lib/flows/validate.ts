@@ -24,7 +24,44 @@
  */
 
 import { INTERACTIVE_LIMITS } from '@/lib/whatsapp/meta-api';
-import { hostFromTemplate, isApiBaseTemplate } from './http-fetch';
+import {
+  hostFromTemplate,
+  isApiBaseTemplate,
+  MAX_CAPTURES,
+} from './http-fetch';
+
+const CAPTURE_VAR_KEY = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+const CAPTURE_FIELD_PATH = /^[a-zA-Z0-9_.]+$/;
+
+/** What is wrong with an http_fetch `capture` map, or null when it is fine. */
+function describeCaptureProblem(
+  capture: unknown,
+  saveAs: string | undefined
+): string | null {
+  if (
+    capture === null ||
+    typeof capture !== 'object' ||
+    Array.isArray(capture)
+  ) {
+    return 'must be a set of variable = field pairs';
+  }
+  const entries = Object.entries(capture as Record<string, unknown>);
+  if (entries.length > MAX_CAPTURES) {
+    return `can hold at most ${MAX_CAPTURES} variables`;
+  }
+  for (const [key, path] of entries) {
+    if (!CAPTURE_VAR_KEY.test(key)) {
+      return `variable "${key}" must be alphanumeric+underscore and start with a letter or underscore`;
+    }
+    if (saveAs && (key === saveAs || key === `${saveAs}_count`)) {
+      return `variable "${key}" is already used by the result`;
+    }
+    if (typeof path !== 'string' || !CAPTURE_FIELD_PATH.test(path)) {
+      return `field for "${key}" may only use letters, numbers, _ and .`;
+    }
+  }
+  return null;
+}
 
 export interface ValidationIssue {
   severity: 'error' | 'warning';
@@ -674,6 +711,7 @@ function validateNode(
         save_as?: string;
         success_next?: string;
         failure_next?: string;
+        capture?: unknown;
       };
       const url = cfg.url?.trim() ?? '';
       if (!url) {
@@ -719,6 +757,18 @@ function validateNode(
           field: 'item_template',
           message: 'HTTP fetch needs an item template, e.g. • {{item.title}}.',
         });
+      }
+      if (cfg.capture !== undefined) {
+        const problem = describeCaptureProblem(cfg.capture, cfg.save_as);
+        if (problem) {
+          issues.push({
+            severity: 'error',
+            scope: 'node',
+            node_key: node.node_key,
+            field: 'capture',
+            message: `HTTP fetch capture ${problem}.`,
+          });
+        }
       }
       for (const exit of ['success_next', 'failure_next'] as const) {
         const key = cfg[exit];

@@ -5,7 +5,9 @@
  * store a rendered summary in a variable for later messages.
  */
 
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import type { BuilderNode } from '../shared';
 import { NextNodeRow, TextRow } from './fields';
 
@@ -18,11 +20,31 @@ export interface HttpFetchCfg {
   empty_text?: string;
   success_next?: string;
   failure_next?: string;
+  capture?: Record<string, string>;
 }
 
 const MIN_ITEMS = 1;
 const MAX_ITEMS = 10;
 const DEFAULT_ITEMS = 5;
+
+function captureToText(capture: Record<string, string> | undefined): string {
+  return Object.entries(capture ?? {})
+    .map(([key, path]) => `${key}=${path}`)
+    .join('\n');
+}
+
+/** One `variable=field` pair per line; lines without a name and field are skipped. */
+function parseCaptureText(text: string): Record<string, string> {
+  const capture: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const separator = line.indexOf('=');
+    if (separator < 0) continue;
+    const key = line.slice(0, separator).trim();
+    const path = line.slice(separator + 1).trim();
+    if (key && path) capture[key] = path;
+  }
+  return capture;
+}
 
 export function HttpFetchForm({
   cfg,
@@ -36,6 +58,9 @@ export function HttpFetchForm({
   onUpdateConfig: (patch: Record<string, unknown>) => void;
 }) {
   const saveAs = cfg.save_as || 'results';
+  // Held as text while typing so half-written lines are not lost; the parsed
+  // pairs are what gets saved. The caller keys this form by node.
+  const [captureText, setCaptureText] = useState(captureToText(cfg.capture));
 
   return (
     <>
@@ -129,6 +154,31 @@ export function HttpFetchForm({
             {`{{vars.${saveAs}_count}}`}
           </code>
           .
+        </p>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs text-slate-400">
+          Also remember from the first result (optional, one per line)
+        </label>
+        <Textarea
+          value={captureText}
+          onChange={(e) => {
+            setCaptureText(e.target.value);
+            onUpdateConfig({ capture: parseCaptureText(e.target.value) });
+          }}
+          rows={2}
+          placeholder={'destination_id=id\nslug=slug'}
+          className="bg-slate-800 font-mono text-xs"
+        />
+        <p className="mt-1 text-[10px] text-slate-500">
+          Format{' '}
+          <code className="rounded bg-slate-800 px-1">variable=field</code>. Use
+          it to pass an id to the next lookup, for example{' '}
+          <code className="rounded bg-slate-800 px-1">
+            {'{{api}}/…/{{vars.destination_id}}/spots'}
+          </code>
+          . Cleared when nothing is found.
         </p>
       </div>
 

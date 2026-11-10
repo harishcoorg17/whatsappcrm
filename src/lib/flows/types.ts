@@ -193,6 +193,13 @@ export interface HttpFetchNodeConfig {
   success_next: string;
   /** Node to advance to when the call was blocked, failed or timed out. */
   failure_next: string;
+  /**
+   * Remember fields of the FIRST item as variables, `{ var_key: "field.path" }`
+   * (up to 5). Lets a later step use an id from this one, for example
+   * `{ destination_id: "id" }` then `/destinations/{{vars.destination_id}}/spots`.
+   * Set to "" when nothing is found, so an old value never lingers.
+   */
+  capture?: Record<string, string>;
 }
 
 // Terminal nodes carry no config — they just stop the run.
