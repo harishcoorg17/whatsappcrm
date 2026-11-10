@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { slugify, type BuilderNode } from "../shared";
 import { NextNodeRow, NodeKeySelect, TextRow } from "./fields";
+import { HttpFetchForm, type HttpFetchCfg } from "./http-fetch-form";
 
 interface NodeConfigFormProps {
   node: BuilderNode;
@@ -172,6 +173,16 @@ export function NodeConfigForm({
       return (
         <ConditionForm
           cfg={cfg as ConditionCfg}
+          allNodes={allNodes}
+          currentKey={node.node_key}
+          onUpdateConfig={onUpdateConfig}
+        />
+      );
+
+    case "http_fetch":
+      return (
+        <HttpFetchForm
+          cfg={cfg as HttpFetchCfg}
           allNodes={allNodes}
           currentKey={node.node_key}
           onUpdateConfig={onUpdateConfig}

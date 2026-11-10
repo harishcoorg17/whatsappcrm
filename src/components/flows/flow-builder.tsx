@@ -525,6 +525,7 @@ function AddNodeButton({ onAdd }: { onAdd: (type: NodeType) => void }) {
     "send_media",
     "collect_input",
     "condition",
+    "http_fetch",
     "set_tag",
     "handoff",
     "end",

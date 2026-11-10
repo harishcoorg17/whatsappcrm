@@ -177,6 +177,17 @@ export function defaultConfigFor(type: NodeType): Record<string, unknown> {
         true_next: "",
         false_next: "",
       };
+    case "http_fetch":
+      return {
+        url: "",
+        items_path: "",
+        item_template: "",
+        max_items: 5,
+        save_as: "results",
+        empty_text: "Nothing found.",
+        success_next: "",
+        failure_next: "",
+      };
     case "set_tag":
       return { mode: "add", tag_id: "", next_node_key: "" };
     case "handoff":

@@ -19,6 +19,7 @@
 import {
   Flag,
   GitFork,
+  Globe,
   Inbox,
   ListChecks,
   ListPlus,
@@ -46,6 +47,7 @@ export type NodeType =
   | "send_media"
   | "collect_input"
   | "condition"
+  | "http_fetch"
   | "set_tag"
   | "handoff"
   | "end";
@@ -99,6 +101,11 @@ export const NODE_META: Record<
     label: "If / else",
     icon: GitFork,
     color: "text-fuchsia-400",
+  },
+  http_fetch: {
+    label: "Fetch live data",
+    icon: Globe,
+    color: "text-orange-400",
   },
   set_tag: {
     label: "Tag contact",
@@ -238,6 +245,14 @@ export function summarizeNode(node: BuilderNode): string | null {
           ? ` "${truncate(value, 20)}"`
           : "";
       return subject === "tag" ? subjectStr : `${subjectStr} ${op}${valStr}`;
+    }
+    case "http_fetch": {
+      const url = typeof cfg.url === "string" ? cfg.url : "";
+      const saveAs = typeof cfg.save_as === "string" ? cfg.save_as : "";
+      if (!url) return null;
+      return saveAs
+        ? `${truncate(url, 50)} → vars.${saveAs}`
+        : truncate(url, 60);
     }
     case "set_tag": {
       const mode = cfg.mode === "remove" ? "Remove" : "Add";

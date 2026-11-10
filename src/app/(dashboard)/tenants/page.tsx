@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { toast, Toaster } from 'sonner';
+import { DataApiDialog } from '@/components/tenants/data-api-dialog';
 
 interface Tenant {
   id: string;
@@ -30,6 +31,7 @@ interface Tenant {
   plan: string;
   waba_id: string | null;
   phone_number_id: string | null;
+  data_api_url: string | null;
   created_at: string;
 }
 
@@ -61,6 +63,7 @@ export default function TenantsPage() {
   const [form, setForm] = useState({ name: '', slug: '', plan: 'starter' });
   const [saving, setSaving] = useState(false);
   const [editCreds, setEditCreds] = useState<EditCreds | null>(null);
+  const [apiTenant, setApiTenant] = useState<Tenant | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
   // Tenants connected through WhatsApp coexistence, which can import phone data.
@@ -72,7 +75,9 @@ export default function TenantsPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('crm_tenants')
-      .select('id,slug,name,status,plan,waba_id,phone_number_id,created_at')
+      .select(
+        'id,slug,name,status,plan,waba_id,phone_number_id,data_api_url,created_at'
+      )
       .order('created_at', { ascending: false });
     if (error) {
       toast.error(error.message);
@@ -402,6 +407,12 @@ export default function TenantsPage() {
                   >
                     {t.waba_id ? 'Edit credentials' : 'Set credentials'}
                   </button>
+                  <button
+                    onClick={() => setApiTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    {t.data_api_url ? 'Backend API ✓' : 'Backend API'}
+                  </button>
                   <a
                     href={`/onboarding?tenant=${t.slug}`}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
@@ -445,6 +456,18 @@ export default function TenantsPage() {
           })}
         </div>
       )}
+
+      <DataApiDialog
+        tenant={apiTenant}
+        onClose={() => setApiTenant(null)}
+        onSaved={(slug, dataApiUrl) =>
+          setTenants((current) =>
+            current.map((t) =>
+              t.slug === slug ? { ...t, data_api_url: dataApiUrl } : t
+            )
+          )
+        }
+      />
 
       {/* Edit credentials dialog */}
       <Dialog
