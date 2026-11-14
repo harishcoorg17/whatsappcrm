@@ -115,7 +115,7 @@ function groupMessagesByDate(messages: Message[]) {
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
   { label: "Open", value: "open", color: "text-primary" },
-  { label: "Pending", value: "pending", color: "text-amber-400" },
+  { label: "Needs human", value: "pending", color: "text-amber-400" },
   { label: "Closed", value: "closed", color: "text-slate-400" },
 ];
 
@@ -480,7 +480,11 @@ export function MessageThread({
       const supabase = createClient();
       await supabase
         .from("conversations")
-        .update({ status })
+        .update(
+          status === "pending"
+            ? { status }
+            : { status, handoff_at: null, handoff_reason: null }
+        )
         .eq("id", conversation.id);
 
       onStatusChange(conversation.id, status);
@@ -724,6 +728,21 @@ export function MessageThread({
 
   return (
     <div className={cn("flex flex-1 flex-col", DOODLE_BG_CLASSES)}>
+      {conversation.status === "pending" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+          <span>
+            Handed to a human — the bot and auto-replies are paused for this
+            chat.
+          </span>
+          <button
+            type="button"
+            onClick={() => handleStatusChange("open")}
+            className="rounded-md border border-amber-500/40 px-2 py-1 font-medium hover:bg-amber-500/20"
+          >
+            Return to bot
+          </button>
+        </div>
+      )}
       {/* Header — glass backdrop blur sits on top of doodle pattern */}
       <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-xl px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">

@@ -16,6 +16,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTenant } from '@/hooks/use-tenant';
+import {
+  numberDisplayName,
+  useTenantNumbers,
+} from '@/hooks/use-tenant-numbers';
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -40,7 +44,7 @@ const STATUS_COLORS: Record<ConversationStatus, string> = {
 const FILTER_OPTIONS: { label: string; value: ConversationStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
   { label: 'Open', value: 'open' },
-  { label: 'Pending', value: 'pending' },
+  { label: 'Needs human', value: 'pending' },
   { label: 'Closed', value: 'closed' },
 ];
 
@@ -55,6 +59,38 @@ export function ConversationList({
   const [filter, setFilter] = useState<ConversationStatus | 'all'>('all');
   const [loading, setLoading] = useState(true);
   const { selectedTenantId } = useTenant();
+
+  // A tenant can have several WhatsApp numbers. Label chats with their number
+  // and let the user filter by it, but only for tenants that have 2+ numbers.
+  const [numberFilter, setNumberFilter] = useState<string>('all');
+  const { numbers, byPhoneId, countByTenant } = useTenantNumbers();
+  const tenantNumbers = useMemo(
+    () =>
+      selectedTenantId
+        ? numbers.filter((n) => n.tenant_id === selectedTenantId)
+        : [],
+    [numbers, selectedTenantId]
+  );
+  const showNumberFilter = tenantNumbers.length > 1;
+  // Switching tenant can leave a stale selection; treat it as "all".
+  const activeNumberFilter = tenantNumbers.some(
+    (n) => n.phone_number_id === numberFilter
+  )
+    ? numberFilter
+    : 'all';
+  const activeNumber = tenantNumbers.find(
+    (n) => n.phone_number_id === activeNumberFilter
+  );
+
+  const numberLabelFor = useCallback(
+    (conv: Conversation): string | null => {
+      if (!conv.phone_number_id || !conv.tenant_id) return null;
+      if ((countByTenant.get(conv.tenant_id) ?? 0) < 2) return null;
+      const number = byPhoneId.get(conv.phone_number_id);
+      return number ? numberDisplayName(number) : null;
+    },
+    [byPhoneId, countByTenant]
+  );
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -121,6 +157,10 @@ export function ConversationList({
       result = result.filter((c) => c.status === filter);
     }
 
+    if (activeNumberFilter !== 'all') {
+      result = result.filter((c) => c.phone_number_id === activeNumberFilter);
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter((c) => {
@@ -132,7 +172,7 @@ export function ConversationList({
     }
 
     return result;
-  }, [conversations, filter, search]);
+  }, [conversations, filter, search, activeNumberFilter]);
 
   const handleSearchChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,7 +194,7 @@ export function ConversationList({
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-primary/20 bg-slate-950/80 backdrop-blur-xl lg:w-80">
+    <div className="border-primary/20 flex h-full w-full flex-col border-r bg-slate-950/80 backdrop-blur-xl lg:w-80">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-slate-800 p-3">
         <div className="relative">
@@ -190,6 +230,50 @@ export function ConversationList({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {showNumberFilter && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex h-7 max-w-full items-center justify-center gap-1 rounded-md px-2 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+              aria-label="Filter by WhatsApp number"
+            >
+              <span className="truncate">
+                {activeNumber ? numberDisplayName(activeNumber) : 'All numbers'}
+              </span>
+              <ChevronDown className="h-3 w-3 shrink-0" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              className="border-slate-700 bg-slate-800"
+            >
+              <DropdownMenuItem
+                onClick={() => setNumberFilter('all')}
+                className={cn(
+                  'text-sm',
+                  activeNumberFilter === 'all'
+                    ? 'text-primary'
+                    : 'text-slate-300'
+                )}
+              >
+                All numbers
+              </DropdownMenuItem>
+              {tenantNumbers.map((n) => (
+                <DropdownMenuItem
+                  key={n.phone_number_id}
+                  onClick={() => setNumberFilter(n.phone_number_id)}
+                  className={cn(
+                    'text-sm',
+                    activeNumberFilter === n.phone_number_id
+                      ? 'text-primary'
+                      : 'text-slate-300'
+                  )}
+                >
+                  {numberDisplayName(n)}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       {/* Conversation Items */}
@@ -210,6 +294,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                numberLabel={numberLabelFor(conv)}
               />
             ))}
           </div>
@@ -223,12 +308,15 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  /** Which of the tenant's WhatsApp numbers this chat is on; null when the tenant has only one. */
+  numberLabel?: string | null;
 }
 
 function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  numberLabel = null,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || 'Unknown';
@@ -250,7 +338,7 @@ function ConversationItem({
       className={cn(
         'flex w-full items-start gap-3 px-3.5 py-3 text-left transition-all hover:bg-slate-900/80',
         isActive
-          ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 via-primary/5 to-transparent shadow-[inset_0_0_15px_rgba(1,195,146,0.12)]'
+          ? 'border-primary from-primary/20 via-primary/5 border-l-2 bg-gradient-to-r to-transparent shadow-[inset_0_0_15px_rgba(1,195,146,0.12)]'
           : 'border-b border-slate-900/60'
       )}
     >
@@ -275,6 +363,14 @@ function ConversationItem({
           </span>
           <span className="shrink-0 text-[10px] text-slate-500">{timeAgo}</span>
         </div>
+        {numberLabel && (
+          <span
+            className="mt-0.5 inline-block max-w-full truncate rounded bg-slate-800 px-1.5 py-px text-[10px] font-medium text-slate-400"
+            title={`Received on ${numberLabel}`}
+          >
+            {numberLabel}
+          </span>
+        )}
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-xs text-slate-400">
             {conversation.last_message_text || 'No messages yet'}
@@ -283,6 +379,14 @@ function ConversationItem({
             {conversation.unread_count > 0 && (
               <span className="bg-primary text-primary-foreground flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold">
                 {conversation.unread_count}
+              </span>
+            )}
+            {conversation.status === 'pending' && (
+              <span
+                className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-amber-600 uppercase dark:text-amber-400"
+                title="The bot has handed this chat to a human"
+              >
+                Needs human
               </span>
             )}
             <span

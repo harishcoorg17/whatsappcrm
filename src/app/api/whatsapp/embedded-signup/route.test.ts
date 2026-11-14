@@ -3,11 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 interface FakeState {
   userId: string | null;
-  tenant: { id: string; owner_user_id: string | null } | null;
+  tenant: {
+    id: string;
+    owner_user_id: string | null;
+    phone_number_id?: string | null;
+  } | null;
   isAdmin: boolean;
   phoneUsedElsewhere: boolean;
   updates: Array<{ table: string; values: Record<string, unknown> }>;
   inserts: Array<{ table: string; values: Record<string, unknown> }>;
+  upserts: Array<{ table: string; values: Record<string, unknown> }>;
 }
 
 const state: FakeState = {
@@ -17,6 +22,7 @@ const state: FakeState = {
   phoneUsedElsewhere: false,
   updates: [],
   inserts: [],
+  upserts: [],
 };
 
 function fakeQuery(table: string) {
@@ -34,6 +40,10 @@ function fakeQuery(table: string) {
     },
     insert: async (values: Record<string, unknown>) => {
       state.inserts.push({ table, values });
+      return { error: null };
+    },
+    upsert: async (values: Record<string, unknown>) => {
+      state.upserts.push({ table, values });
       return { error: null };
     },
     maybeSingle: async () => {
@@ -161,6 +171,7 @@ beforeEach(() => {
     phoneUsedElsewhere: false,
     updates: [],
     inserts: [],
+    upserts: [],
   });
   meta = {
     grantedWabaIds: ['w1'],
@@ -273,6 +284,7 @@ describe('POST /api/whatsapp/embedded-signup — success', () => {
       wabaId: 'w1',
       phoneNumberId: 'p1',
       coexistence: true,
+      added: false,
     });
 
     expect(state.updates).toHaveLength(1);
@@ -294,6 +306,65 @@ describe('POST /api/whatsapp/embedded-signup — success', () => {
       tenant_id: 't1',
       event_type: 'completed_coexistence',
     });
+  });
+
+  it('adds a second number beside the primary instead of replacing it', async () => {
+    state.tenant = {
+      id: 't1',
+      owner_user_id: 'u1',
+      phone_number_id: 'primary-1',
+    };
+    const res = await callRoute({ ...CODE_BODY, addNumber: true });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      phoneNumberId: 'p1',
+      added: true,
+    });
+
+    // The tenant's primary number is left alone...
+    expect(state.updates).toHaveLength(0);
+    // ...and the new one is saved beside it with its own encrypted token.
+    expect(state.upserts).toHaveLength(1);
+    expect(state.upserts[0].table).toBe('crm_tenant_numbers');
+    expect(state.upserts[0].values).toMatchObject({
+      tenant_id: 't1',
+      phone_number_id: 'p1',
+      waba_id: 'w1',
+      is_primary: false,
+      status: 'active',
+    });
+    expect(state.upserts[0].values.access_token_enc).toMatch(/^enc\(/);
+    expect(state.inserts[0].values).toMatchObject({
+      event_type: 'completed_coexistence',
+    });
+  });
+
+  it('makes the first number the primary even when asked to add', async () => {
+    state.tenant = { id: 't1', owner_user_id: 'u1', phone_number_id: null };
+    const res = await callRoute({ ...CODE_BODY, addNumber: true });
+    expect(await res.json()).toMatchObject({ added: false });
+    expect(state.updates).toHaveLength(1);
+    expect(state.upserts).toHaveLength(0);
+  });
+
+  it('treats re-scanning the primary number as a normal reconnect', async () => {
+    state.tenant = { id: 't1', owner_user_id: 'u1', phone_number_id: 'p1' };
+    const res = await callRoute({ ...CODE_BODY, addNumber: true });
+    expect(await res.json()).toMatchObject({ added: false });
+    expect(state.updates).toHaveLength(1);
+    expect(state.upserts).toHaveLength(0);
+  });
+
+  it('refuses to add a number that belongs to another tenant', async () => {
+    state.tenant = {
+      id: 't1',
+      owner_user_id: 'u1',
+      phone_number_id: 'primary-1',
+    };
+    state.phoneUsedElsewhere = true;
+    const res = await callRoute({ ...CODE_BODY, addNumber: true });
+    expect(res.status).toBe(409);
+    expect(state.upserts).toHaveLength(0);
   });
 
   it('discovers the only granted WABA and phone number when the browser sent none', async () => {

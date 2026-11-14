@@ -247,6 +247,7 @@ export default function InboxPage() {
   );
 
   // Handle realtime conversation events
+  const handoffSeenRef = useRef(new Map<string, string>());
   const handleConversationEvent = useCallback(
     (event: {
       eventType: string;
@@ -271,6 +272,18 @@ export default function InboxPage() {
       }
 
       if (event.eventType === 'UPDATE') {
+        // Bot handed this conversation to a human — alert the agent once
+        // per handoff (handoff_at changes on each new handoff).
+        if (
+          conv.status === 'pending' &&
+          conv.handoff_at &&
+          handoffSeenRef.current.get(conv.id) !== conv.handoff_at
+        ) {
+          handoffSeenRef.current.set(conv.id, conv.handoff_at);
+          toast.warning('A customer needs a human agent', {
+            description: conv.last_message_text ?? undefined,
+          });
+        }
         if (knownConvIdsRef.current.has(conv.id)) {
           // If this UPDATE is for the conv the user is currently viewing,
           // suppress the incoming unread_count — the user is reading it
@@ -372,6 +385,10 @@ export default function InboxPage() {
   const handleConversationsLoaded = useCallback(
     (loaded: Conversation[]) => {
       setConversations(loaded);
+      // Already-known handoffs must not re-toast on their next update.
+      for (const c of loaded) {
+        if (c.handoff_at) handoffSeenRef.current.set(c.id, c.handoff_at);
+      }
       // Resolve a pending deep-link here rather than in an effect — this
       // is an event handler, so the setState calls below are allowed by
       // react-hooks/set-state-in-effect. Runs once per ?c=<id> URL value

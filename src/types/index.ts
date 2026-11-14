@@ -74,6 +74,12 @@ export interface Conversation {
   contact_id: string;
   status: ConversationStatus;
   assigned_agent_id?: string;
+  tenant_id?: string | null;
+  /** The tenant WhatsApp number this conversation is on (tenants can have several). */
+  phone_number_id?: string | null;
+  /** Set when the bot handed the chat to a human; bot is silent while status is 'pending'. */
+  handoff_at?: string | null;
+  handoff_reason?: string | null;
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
@@ -93,7 +99,12 @@ export type ContentType =
   | 'template'
   /** Customer tapped a reply button or list row on a message we sent. */
   | 'interactive';
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
+export type MessageStatus =
+  | 'sending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'failed';
 
 export interface Message {
   id: string;
@@ -241,8 +252,19 @@ export interface Deal {
   assignee?: Profile;
 }
 
-export type BroadcastStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-export type RecipientStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'replied' | 'failed';
+export type BroadcastStatus =
+  | 'draft'
+  | 'scheduled'
+  | 'sending'
+  | 'sent'
+  | 'failed';
+export type RecipientStatus =
+  | 'pending'
+  | 'sent'
+  | 'delivered'
+  | 'read'
+  | 'replied'
+  | 'failed';
 
 export interface Broadcast {
   id: string;
@@ -480,16 +502,16 @@ export interface BroadcastWorkerStatus {
 }
 
 export interface ParallelBroadcastConfig {
-  concurrent_workers?: number;        // 1-10, default 3
-  delay_between_sends_ms?: number;    // 100-5000ms, default 500ms
-  burst_size?: number;                // Send X messages then pause
-  max_retries?: number;               // Retry failed sends
-  retry_delay_seconds?: number;       // Wait before retry
+  concurrent_workers?: number; // 1-10, default 3
+  delay_between_sends_ms?: number; // 100-5000ms, default 500ms
+  burst_size?: number; // Send X messages then pause
+  max_retries?: number; // Retry failed sends
+  retry_delay_seconds?: number; // Wait before retry
 }
 
 export interface BroadcastRecipientWithParams {
   phone: string;
-  params: string[];  // Template variables
+  params: string[]; // Template variables
   custom_fields?: Record<string, string>;
 }
 
@@ -562,4 +584,3 @@ export interface FormResponse {
   is_valid: boolean;
   validation_error?: string;
 }
-

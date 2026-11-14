@@ -16,6 +16,7 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { isBotSilenced } from '@/lib/flows/handoff'
 
 // ------------------------------------------------------------
 // Public API
@@ -51,6 +52,16 @@ export interface DispatchInput {
 export async function runAutomationsForTrigger(input: DispatchInput): Promise<void> {
   try {
     const db = supabaseAdmin()
+    // Bot stays silent while a human has the conversation (handoff).
+    const convId = input.context?.conversation_id
+    if (convId) {
+      const { data: conv } = await db
+        .from('conversations')
+        .select('status')
+        .eq('id', convId)
+        .maybeSingle()
+      if (isBotSilenced((conv as { status?: string } | null)?.status)) return
+    }
     const { data: automations, error } = await db
       .from('automations')
       .select('*')

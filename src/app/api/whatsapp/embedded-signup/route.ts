@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { encrypt } from '@/lib/whatsapp/encryption';
 import { GRAPH_BASE_URL } from '@/lib/whatsapp/meta-config';
+import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 import {
   canManageTenant,
   resolveSignupAssets,
@@ -35,11 +36,17 @@ interface SignupBody {
   accessToken?: string;
   /** Hint from the browser for the audit log. Never used for authorization. */
   coexistence?: boolean;
+  /**
+   * Add this number alongside the tenant's existing one instead of replacing
+   * it. Ignored (the number becomes the primary) when the tenant has none yet.
+   */
+  addNumber?: boolean;
 }
 
 interface TenantRow {
   id: string;
   owner_user_id: string | null;
+  phone_number_id: string | null;
 }
 
 async function graphGet<T>(
@@ -100,7 +107,7 @@ async function authorizeTenant(
 ): Promise<{ tenant: TenantRow; isAdmin: boolean }> {
   const { data: tenant, error } = await db
     .from('crm_tenants')
-    .select('id, owner_user_id')
+    .select('id, owner_user_id, phone_number_id')
     .eq('slug', tenantSlug)
     .maybeSingle();
   if (error) {
@@ -284,7 +291,15 @@ async function assertPhoneNotUsedElsewhere(
     .eq('phone_number_id', phoneNumberId)
     .neq('id', tenantId)
     .maybeSingle();
-  if (data) {
+  // A tenant can also own extra numbers (crm_tenant_numbers). If that table
+  // is not there yet the lookup just returns nothing.
+  const { data: extra } = await db
+    .from('crm_tenant_numbers')
+    .select('tenant_id')
+    .eq('phone_number_id', phoneNumberId)
+    .neq('tenant_id', tenantId)
+    .maybeSingle();
+  if (data || extra) {
     throw new SignupError(
       'This phone number is already connected to another tenant',
       409
@@ -314,6 +329,63 @@ async function subscribeAppToWaba(
   }
 }
 
+/**
+ * Save a number next to the tenant's primary. Re-scanning a number that is
+ * already on this tenant refreshes its token instead of failing. The label and
+ * display number come from Meta on a best-effort basis, so a lookup hiccup
+ * never blocks the connection.
+ */
+async function saveAdditionalNumber(
+  db: AdminClient,
+  params: {
+    tenantId: string;
+    wabaId: string;
+    phoneNumberId: string;
+    token: string;
+  }
+): Promise<void> {
+  const { tenantId, wabaId, phoneNumberId, token } = params;
+
+  let label: string | undefined;
+  let displayPhoneNumber: string | undefined;
+  try {
+    const info = await verifyPhoneNumber({ phoneNumberId, accessToken: token });
+    label = info.verified_name;
+    displayPhoneNumber = info.display_phone_number;
+  } catch (error) {
+    console.warn(
+      '[embedded-signup] could not read number details:',
+      error instanceof Error ? error.message : error
+    );
+  }
+
+  const { error } = await db.from('crm_tenant_numbers').upsert(
+    {
+      tenant_id: tenantId,
+      phone_number_id: phoneNumberId,
+      waba_id: wabaId,
+      access_token_enc: await encrypt(token),
+      is_primary: false,
+      status: 'active',
+      ...(label ? { label } : {}),
+      ...(displayPhoneNumber
+        ? { display_phone_number: displayPhoneNumber }
+        : {}),
+    },
+    { onConflict: 'phone_number_id' }
+  );
+  if (error) {
+    console.error(
+      '[embedded-signup] saving extra number failed:',
+      error.message
+    );
+    throw new SignupError(
+      'Could not save the additional number. Has the numbers migration been applied?',
+      500
+    );
+  }
+}
+
 async function connectTenant(
   db: AdminClient,
   params: {
@@ -325,30 +397,52 @@ async function connectTenant(
     token: string;
     coexistence: boolean;
     method: 'code' | 'direct_token';
+    addNumber: boolean;
   }
-): Promise<void> {
+): Promise<{ added: boolean }> {
   const { tenant, tenantSlug, userId, wabaId, phoneNumberId, token } = params;
 
-  const { error } = await db
-    .from('crm_tenants')
-    .update({
-      waba_id: wabaId,
-      phone_number_id: phoneNumberId,
-      access_token_enc: await encrypt(token),
-      status: 'active',
-      // Never replace an existing owner: only claim an unowned tenant.
-      owner_user_id: tenant.owner_user_id ?? userId,
-    })
-    .eq('slug', tenantSlug);
-  if (error) throw new SignupError(error.message, 500);
+  // Adding a second (third, …) number: keep the primary as it is and save this
+  // one beside it. The first number a tenant connects is always its primary.
+  const isAddition =
+    params.addNumber &&
+    Boolean(tenant.phone_number_id) &&
+    tenant.phone_number_id !== phoneNumberId;
+
+  if (isAddition) {
+    await saveAdditionalNumber(db, {
+      tenantId: tenant.id,
+      wabaId,
+      phoneNumberId,
+      token,
+    });
+  } else {
+    const { error } = await db
+      .from('crm_tenants')
+      .update({
+        waba_id: wabaId,
+        phone_number_id: phoneNumberId,
+        access_token_enc: await encrypt(token),
+        status: 'active',
+        // Never replace an existing owner: only claim an unowned tenant.
+        owner_user_id: tenant.owner_user_id ?? userId,
+      })
+      .eq('slug', tenantSlug);
+    if (error) throw new SignupError(error.message, 500);
+  }
 
   await db.from('embedded_signup_events').insert({
     tenant_id: tenant.id,
     event_type: params.coexistence ? 'completed_coexistence' : 'completed',
     waba_id: wabaId,
     phone_number_id: phoneNumberId,
-    raw_payload: { method: params.method, connectedBy: userId },
+    raw_payload: {
+      method: params.method,
+      connectedBy: userId,
+      addedNumber: isAddition,
+    },
   });
+  return { added: isAddition };
 }
 
 async function connectWithCode(
@@ -374,7 +468,7 @@ async function connectWithCode(
   await subscribeAppToWaba(assets.wabaId, token);
 
   const coexistence = body.coexistence === true;
-  await connectTenant(db, {
+  const { added } = await connectTenant(db, {
     tenant,
     tenantSlug,
     userId,
@@ -383,8 +477,9 @@ async function connectWithCode(
     token,
     coexistence,
     method: 'code',
+    addNumber: body.addNumber === true,
   });
-  return { wabaId: assets.wabaId, phoneNumberId, coexistence };
+  return { wabaId: assets.wabaId, phoneNumberId, coexistence, added };
 }
 
 async function connectWithDirectToken(
@@ -408,7 +503,7 @@ async function connectWithDirectToken(
   await assertPhoneNotUsedElsewhere(db, phoneNumberId, tenant.id);
   await subscribeAppToWaba(wabaId, token);
 
-  await connectTenant(db, {
+  const { added } = await connectTenant(db, {
     tenant,
     tenantSlug,
     userId,
@@ -417,8 +512,9 @@ async function connectWithDirectToken(
     token,
     coexistence: false,
     method: 'direct_token',
+    addNumber: body.addNumber === true,
   });
-  return { wabaId, phoneNumberId, coexistence: false };
+  return { wabaId, phoneNumberId, coexistence: false, added };
 }
 
 export async function POST(req: NextRequest) {

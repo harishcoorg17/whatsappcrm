@@ -105,6 +105,16 @@ export interface HandoffNodeConfig {
    * node fires. Leave unset to flip the status without assignment.
    */
   assign_to?: string;
+  /**
+   * Sent to the customer when the handoff fires. Defaults to a generic
+   * "Connecting you to a team member" text; set to an empty string to
+   * send nothing.
+   */
+  message?: string;
+  /** Sent instead of `message` when outside `business_hours`. */
+  out_of_hours_message?: string;
+  /** Optional opening hours; unset means always in hours. */
+  business_hours?: { start: string; end: string; utc_offset_minutes: number };
 }
 
 /**
@@ -400,6 +410,7 @@ export interface DispatchInboundResult {
     | 'handed_off'
     | 'fallback_fired'
     | 'duplicate_inbound_ignored'
+    | 'human_handling'
     | 'no_match';
 }
 

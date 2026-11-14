@@ -39,6 +39,12 @@ import {
   engineSendMedia,
   engineSendText,
 } from './meta-send';
+import {
+  isBotSilenced,
+  isHumanRequest,
+  performHandoff,
+  type BusinessHours,
+} from './handoff';
 import { decideFallback, resolveFallbackPolicy } from './fallback';
 import {
   isApiBaseTemplate,
@@ -450,21 +456,30 @@ async function executeHandoff(
   run: FlowRunRow,
   node: FlowNodeRow
 ): Promise<void> {
-  const cfg = node.config as { assign_to?: string; note?: string };
-  const convUpdate: Record<string, unknown> = {
-    status: 'pending',
-    updated_at: new Date().toISOString(),
+  const cfg = node.config as {
+    assign_to?: string;
+    note?: string;
+    message?: string;
+    out_of_hours_message?: string;
+    business_hours?: BusinessHours;
   };
-  if (cfg.assign_to) convUpdate.assigned_agent_id = cfg.assign_to;
-  if (run.conversation_id) {
-    await db
-      .from('conversations')
-      .update(convUpdate)
-      .eq('id', run.conversation_id);
+  let ackSent = false;
+  if (run.conversation_id && run.contact_id) {
+    ({ ackSent } = await performHandoff(db, {
+      userId: run.user_id,
+      conversationId: run.conversation_id,
+      contactId: run.contact_id,
+      reason: 'handoff_node',
+      assignTo: cfg.assign_to,
+      message: cfg.message,
+      out_of_hours_message: cfg.out_of_hours_message,
+      business_hours: cfg.business_hours,
+    }));
   }
   await logEvent(db, run.id, 'handoff', node.node_key, {
     note: cfg.note ?? null,
     assigned_to: cfg.assign_to ?? null,
+    ack_sent: ackSent,
   });
   await endRun(db, run.id, 'handed_off', 'handoff_node');
 }
@@ -892,11 +907,48 @@ export async function dispatchInboundToFlows(
 ): Promise<DispatchInboundResult> {
   const db = supabaseAdmin();
   try {
+    // A conversation handed to a human stays bot-silent until an agent
+    // returns it (status -> open) or closes it.
+    const { data: conv } = await db
+      .from('conversations')
+      .select('status')
+      .eq('id', input.conversationId)
+      .maybeSingle();
+    if (isBotSilenced((conv as { status?: string } | null)?.status)) {
+      return { consumed: true, outcome: 'human_handling' };
+    }
+
     const activeRun = await loadActiveRunForContact(
       db,
       input.userId,
       input.contactId
     );
+
+    // Customer asks for a person ("agent", "human", a talk_to_agent tap).
+    // (Button taps are left to the active node so a menu option with a
+    // human-ish id can still route to its own handoff node.)
+    if (
+      isHumanRequest(input.message) &&
+      !(activeRun && input.message.kind === 'interactive_reply')
+    ) {
+      if (activeRun) {
+        await endRun(db, activeRun.id, 'handed_off', 'customer_requested');
+        await logEvent(db, activeRun.id, 'handoff', activeRun.current_node_key, {
+          reason: 'customer_requested',
+        });
+      }
+      await performHandoff(db, {
+        userId: input.userId,
+        conversationId: input.conversationId,
+        contactId: input.contactId,
+        reason: 'customer_requested',
+      });
+      return {
+        consumed: true,
+        flow_run_id: activeRun?.id,
+        outcome: 'handed_off',
+      };
+    }
 
     // Idempotency — only matters if there's already a run for this
     // contact. For new runs, the partial unique index catches duplicate
@@ -1093,11 +1145,13 @@ async function handleReplyForActiveRun(
     return { consumed: true, flow_run_id: run.id, outcome: 'fallback_fired' };
   }
   if (action.type === 'handoff') {
-    if (run.conversation_id) {
-      await db
-        .from('conversations')
-        .update({ status: 'pending', updated_at: new Date().toISOString() })
-        .eq('id', run.conversation_id);
+    if (run.conversation_id && run.contact_id) {
+      await performHandoff(db, {
+        userId: run.user_id,
+        conversationId: run.conversation_id,
+        contactId: run.contact_id,
+        reason: 'fallback_exhausted',
+      });
     }
     await logEvent(db, run.id, 'handoff', run.current_node_key, {
       reason: 'fallback_exhausted',

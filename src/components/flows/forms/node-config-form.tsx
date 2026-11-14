@@ -193,15 +193,35 @@ export function NodeConfigForm({
         />
       );
 
-    case 'handoff':
+    case 'handoff': {
+      const h = cfg as {
+        note?: string;
+        message?: string;
+        out_of_hours_message?: string;
+      };
       return (
-        <TextRow
-          label="Internal note (for the agent picking up)"
-          value={(cfg as { note?: string }).note ?? ''}
-          onChange={(v) => onUpdateConfig({ note: v })}
-          rows={2}
-        />
+        <div className="space-y-3">
+          <TextRow
+            label="Message to customer (blank = default “Connecting you to a team member”)"
+            value={h.message ?? ''}
+            onChange={(v) => onUpdateConfig({ message: v })}
+            rows={2}
+          />
+          <TextRow
+            label="Out-of-hours message (used when business hours are set and closed)"
+            value={h.out_of_hours_message ?? ''}
+            onChange={(v) => onUpdateConfig({ out_of_hours_message: v })}
+            rows={2}
+          />
+          <TextRow
+            label="Internal note (for the agent picking up)"
+            value={h.note ?? ''}
+            onChange={(v) => onUpdateConfig({ note: v })}
+            rows={2}
+          />
+        </div>
       );
+    }
 
     case 'end':
       return (

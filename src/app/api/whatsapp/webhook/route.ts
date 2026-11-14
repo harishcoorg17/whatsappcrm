@@ -12,6 +12,7 @@ import {
 } from '@/lib/whatsapp/template-webhook';
 import { isCoexistenceField } from '@/lib/whatsapp/coexistence-events';
 import { handleCoexistenceChange } from '@/lib/whatsapp/coexistence-store';
+import { resolveTenantRoute } from '@/lib/whatsapp/number-routing';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -290,26 +291,25 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
 
       const phoneNumberId = value.metadata.phone_number_id;
 
-      // ── Multi-tenant path: check crm_tenants first ──────────────────────
-      // Each tenant's WABA credentials are stored in crm_tenants after ES.
-      const { data: tenantRow } = await supabaseAdmin()
-        .from('crm_tenants')
-        .select('id, access_token_enc, owner_user_id')
-        .eq('phone_number_id', phoneNumberId)
-        .eq('status', 'active')
-        .maybeSingle();
+      // ── Multi-tenant path: which tenant owns this number? ───────────────
+      // A tenant can have several numbers (crm_tenant_numbers); the lookup
+      // falls back to the tenant's primary number on crm_tenants.
+      const tenantRow = await resolveTenantRoute(
+        supabaseAdmin(),
+        phoneNumberId
+      );
 
       console.log('[webhook] tenant lookup', {
         phoneNumberId,
         found: Boolean(tenantRow),
-        hasToken: Boolean(tenantRow?.access_token_enc),
-        hasOwner: Boolean(tenantRow?.owner_user_id),
+        hasToken: Boolean(tenantRow?.accessTokenEnc),
+        hasOwner: Boolean(tenantRow?.ownerUserId),
       });
 
-      if (tenantRow?.access_token_enc) {
+      if (tenantRow?.accessTokenEnc) {
         let tenantToken: string;
         try {
-          tenantToken = decrypt(tenantRow.access_token_enc);
+          tenantToken = decrypt(tenantRow.accessTokenEnc);
         } catch {
           console.error(
             '[webhook] failed to decrypt tenant token, phone_number_id:',
@@ -322,12 +322,12 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
         // guessed. An earlier version assigned the first auth user to an
         // unowned tenant, which filed one tenant's conversations under an
         // unrelated account. An unowned tenant is a setup error: drop and log.
-        const ownerUserId: string | null = tenantRow.owner_user_id ?? null;
+        const ownerUserId: string | null = tenantRow.ownerUserId;
 
         if (!ownerUserId) {
           console.error(
             '[webhook] no owner_user_id for tenant',
-            tenantRow.id,
+            tenantRow.tenantId,
             '— message dropped'
           );
           continue;
@@ -339,7 +339,8 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
             value.contacts[i] || value.contacts[0],
             ownerUserId,
             tenantToken,
-            tenantRow.id
+            tenantRow.tenantId,
+            phoneNumberId
           );
         }
         continue;
@@ -637,7 +638,9 @@ async function processMessage(
   contact: { profile: { name: string }; wa_id: string },
   userId: string,
   accessToken: string,
-  tenantId?: string
+  tenantId?: string,
+  /** The tenant number the customer wrote to (tenants can have several). */
+  receivingNumberId?: string
 ) {
   const senderPhone = normalizePhone(message.from);
   const contactName = contact.profile.name;
@@ -656,7 +659,8 @@ async function processMessage(
   const conversation = await findOrCreateConversation(
     userId,
     contactRecord.id,
-    tenantId
+    tenantId,
+    receivingNumberId
   );
   if (!conversation) return;
 
@@ -1064,35 +1068,100 @@ async function findOrCreateContact(
   return { contact: newContact, wasCreated: true };
 }
 
-async function findOrCreateConversation(
+// Postgres "undefined_column": conversations.phone_number_id is added by
+// migration 028. Until it is applied, fall back to one conversation per
+// contact so inbound messages are never dropped.
+const UNDEFINED_COLUMN = '42703';
+
+function conversationQuery(
   userId: string,
   contactId: string,
   tenantId?: string
 ) {
-  // Look for existing conversation
   const query = supabaseAdmin()
     .from('conversations')
     .select('*')
     .eq('user_id', userId)
     .eq('contact_id', contactId);
   if (tenantId) query.eq('tenant_id', tenantId);
+  return query;
+}
 
-  const { data: existing, error: findError } = await query.maybeSingle();
+async function findOrCreateConversation(
+  userId: string,
+  contactId: string,
+  tenantId?: string,
+  receivingNumberId?: string
+) {
+  // A tenant can have several numbers, so a contact has one conversation per
+  // number: replies must leave from the number the customer wrote to, and
+  // WhatsApp's 24-hour window is per number pair.
+  const numberScoped = Boolean(tenantId && receivingNumberId);
 
-  if (!findError && existing) {
-    return existing;
+  if (numberScoped) {
+    const { data: onNumber, error: numberError } = await conversationQuery(
+      userId,
+      contactId,
+      tenantId
+    )
+      .eq('phone_number_id', receivingNumberId)
+      .maybeSingle();
+
+    if (numberError?.code === UNDEFINED_COLUMN) {
+      return findOrCreateConversation(userId, contactId, tenantId);
+    }
+    if (!numberError && onNumber) return onNumber;
+
+    // An older conversation that never recorded its number belongs to this one.
+    const { data: unassigned } = await conversationQuery(
+      userId,
+      contactId,
+      tenantId
+    )
+      .is('phone_number_id', null)
+      .maybeSingle();
+    if (unassigned) {
+      await supabaseAdmin()
+        .from('conversations')
+        .update({ phone_number_id: receivingNumberId })
+        .eq('id', unassigned.id);
+      return { ...unassigned, phone_number_id: receivingNumberId };
+    }
+  } else {
+    // Look for existing conversation
+    const { data: existing, error: findError } = await conversationQuery(
+      userId,
+      contactId,
+      tenantId
+    ).maybeSingle();
+
+    if (!findError && existing) {
+      return existing;
+    }
   }
 
-  // Create new conversation — tag with tenant_id when available
-  const { data: newConv, error: createError } = await supabaseAdmin()
+  // Create new conversation — tag with tenant_id (and number) when available
+  const insertRow = {
+    user_id: userId,
+    contact_id: contactId,
+    ...(tenantId ? { tenant_id: tenantId } : {}),
+  };
+  let { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
     .insert({
-      user_id: userId,
-      contact_id: contactId,
-      ...(tenantId ? { tenant_id: tenantId } : {}),
+      ...insertRow,
+      ...(numberScoped ? { phone_number_id: receivingNumberId } : {}),
     })
     .select()
     .single();
+
+  if (createError?.code === UNDEFINED_COLUMN && numberScoped) {
+    ({ data: newConv, error: createError } = await supabaseAdmin()
+      .from('conversations')
+      .insert(insertRow)
+      .select()
+      .single());
+  }
 
   if (createError) {
     console.error('Error creating conversation:', createError);

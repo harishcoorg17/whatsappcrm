@@ -61,6 +61,8 @@ function OnboardingContent() {
   const [tenantError, setTenantError] = useState('');
   const tenantSlug = tenantParam || ownTenantSlug;
   const isSelfServe = tenantParam === '';
+  // ?add=1 adds another number to the tenant instead of replacing its primary.
+  const isAddMode = params.get('add') === '1';
   const [step, setStep] = useState<Step>('idle');
   const [result, setResult] = useState<SignupResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
@@ -161,6 +163,7 @@ function OnboardingContent() {
           wabaId: wabaId.trim(),
           phoneNumberId: phoneNumberId.trim(),
           accessToken: accessToken.trim(),
+          addNumber: isAddMode,
         }),
       });
       const data = await res.json();
@@ -213,6 +216,7 @@ function OnboardingContent() {
                 wabaId,
                 phoneNumberId,
                 coexistence: coexistence ?? false,
+                addNumber: isAddMode,
               }),
             });
             const data = await res.json();
@@ -222,7 +226,11 @@ function OnboardingContent() {
               phoneNumberId: data.phoneNumberId,
             });
             setStep('done');
-            toast.success('WhatsApp Business connected!');
+            toast.success(
+              isAddMode
+                ? 'WhatsApp number added!'
+                : 'WhatsApp Business connected!'
+            );
           } catch (e: unknown) {
             setErrorMsg(
               e instanceof Error ? e.message : 'Failed to save credentials'
@@ -271,9 +279,13 @@ function OnboardingContent() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-500/30 bg-emerald-500/15">
             <CheckCircle className="h-8 w-8 text-emerald-400" />
           </div>
-          <h2 className="text-xl font-bold text-white">Connected!</h2>
+          <h2 className="text-xl font-bold text-white">
+            {isAddMode ? 'Number added!' : 'Connected!'}
+          </h2>
           <p className="text-sm text-slate-400">
-            WhatsApp Business linked to{' '}
+            {isAddMode
+              ? 'New WhatsApp number added to'
+              : 'WhatsApp Business linked to'}{' '}
             <span className="font-mono text-white">/{tenantSlug}</span>
           </p>
           <div className="space-y-2 rounded-xl bg-slate-800/60 p-4 text-left text-sm">
@@ -409,7 +421,9 @@ function OnboardingContent() {
         /* ── ES wizard (META_CONFIG_ID is set) ── */
         <div className="space-y-5">
           <div>
-            <h2 className="text-xl font-bold text-white">Connect WhatsApp</h2>
+            <h2 className="text-xl font-bold text-white">
+              {isAddMode ? 'Add another WhatsApp number' : 'Connect WhatsApp'}
+            </h2>
             {tenantSlug && (
               <p className="mt-1 text-sm text-slate-400">
                 Tenant:{' '}
@@ -422,12 +436,29 @@ function OnboardingContent() {
               Connect your WhatsApp Business Account via Meta&apos;s official
               Embedded Signup flow.
             </p>
-            <ul className="list-disc space-y-1.5 pl-4 marker:text-slate-600">
-              <li>Log in with your Facebook Business account</li>
-              <li>Select or create your WhatsApp Business Account</li>
-              <li>Verify your business phone number</li>
-              <li>Credentials are AES-256-GCM encrypted at rest</li>
-            </ul>
+            {isAddMode ? (
+              <ul className="list-disc space-y-1.5 pl-4 marker:text-slate-600">
+                <li>Click Continue and sign in with Facebook</li>
+                <li>
+                  Choose to connect your existing WhatsApp Business app number
+                </li>
+                <li>
+                  Scan the QR code Meta shows with the WhatsApp Business app on
+                  that phone
+                </li>
+                <li>
+                  Your current numbers keep working; this one is added to the
+                  same inbox
+                </li>
+              </ul>
+            ) : (
+              <ul className="list-disc space-y-1.5 pl-4 marker:text-slate-600">
+                <li>Log in with your Facebook Business account</li>
+                <li>Select or create your WhatsApp Business Account</li>
+                <li>Verify your business phone number</li>
+                <li>Credentials are AES-256-GCM encrypted at rest</li>
+              </ul>
+            )}
           </div>
           <Button
             onClick={launchSignup}
