@@ -26,12 +26,12 @@ export function ThemeToggle({ className }: { className?: string }) {
               className={`relative h-9 w-9 border-slate-700/80 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white dark:border-slate-700/80 dark:bg-slate-900/60 dark:text-slate-200 light:border-slate-300 light:bg-white light:text-slate-700 light:hover:bg-slate-100 transition-all ${className}`}
             >
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 light:rotate-0 light:scale-100 text-amber-500" />
-              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 light:rotate-90 light:scale-0 text-violet-400" />
+              <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 light:rotate-90 light:scale-0 text-primary" />
             </Button>
           }
         >
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 light:rotate-0 light:scale-100 text-amber-500" />
-          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 light:rotate-90 light:scale-0 text-violet-400" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 light:rotate-90 light:scale-0 text-primary" />
         </TooltipTrigger>
         <TooltipContent side="bottom">
           {mode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
@@ -67,7 +67,7 @@ export function ThemeModeSegmented() {
             : "text-slate-500 hover:text-slate-700"
         }`}
       >
-        <Moon className="h-3.5 w-3.5 text-violet-400" />
+        <Moon className="h-3.5 w-3.5 text-primary" />
         Dark
       </button>
     </div>

@@ -737,7 +737,7 @@ export function MessageThread({
               <ArrowLeft className="h-5 w-5" />
             </button>
           )}
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-indigo-600 text-sm font-semibold text-white shadow-md shadow-primary/20 ring-2 ring-primary/30">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-brand-hover text-sm font-semibold text-white shadow-md shadow-primary/20 ring-2 ring-primary/30">
             {displayName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">

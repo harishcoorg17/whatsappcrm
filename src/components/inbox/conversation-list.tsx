@@ -154,7 +154,7 @@ export function ConversationList({
     // w-full on mobile so the list occupies the whole viewport when it's
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
-    <div className="flex h-full w-full flex-col border-r border-violet-500/20 bg-slate-950/80 backdrop-blur-xl lg:w-80">
+    <div className="flex h-full w-full flex-col border-r border-primary/20 bg-slate-950/80 backdrop-blur-xl lg:w-80">
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-slate-800 p-3">
         <div className="relative">
@@ -250,7 +250,7 @@ function ConversationItem({
       className={cn(
         'flex w-full items-start gap-3 px-3.5 py-3 text-left transition-all hover:bg-slate-900/80',
         isActive
-          ? 'border-l-2 border-cyan-400 bg-gradient-to-r from-violet-500/25 via-violet-500/10 to-transparent shadow-[inset_0_0_15px_rgba(6,182,212,0.15)]'
+          ? 'border-l-2 border-primary bg-gradient-to-r from-primary/20 via-primary/5 to-transparent shadow-[inset_0_0_15px_rgba(1,195,146,0.12)]'
           : 'border-b border-slate-900/60'
       )}
     >

@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
 import { Toaster } from 'sonner';
 import './globals.css';
 import { ThemeProvider } from '@/hooks/use-theme';
 import { DEFAULT_THEME, STORAGE_KEY, THEME_IDS } from '@/lib/themes';
 
-const inter = Inter({
+const inter = Plus_Jakarta_Sans({
   variable: '--font-sans',
   subsets: ['latin'],
   display: 'swap',
@@ -22,17 +22,21 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Novacompass WhatsApp CRM',
-    template: '%s — Novacompass WhatsApp CRM',
+    default: 'ConverMesh WhatsApp CRM',
+    template: '%s — ConverMesh WhatsApp CRM',
   },
   description:
-    'Novacompass WhatsApp CRM — multi-tenant WhatsApp Business management.',
+    'ConverMesh WhatsApp CRM — multi-tenant WhatsApp Business management.',
   robots: {
     index: false,
     follow: false,
   },
   icons: {
-    icon: [{ url: '/icon' }],
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-256.png', type: 'image/png', sizes: '256x256' },
+    ],
+    apple: [{ url: '/favicon-256.png', sizes: '256x256', type: 'image/png' }],
   },
   formatDetection: {
     email: false,

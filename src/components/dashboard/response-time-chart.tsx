@@ -26,7 +26,7 @@ export function ResponseTimeChart({
 
   return (
     <section className="glass-card overflow-hidden">
-      <header className="flex items-center justify-between border-b border-violet-500/20 px-5 py-4 bg-slate-950/40">
+      <header className="flex items-center justify-between border-b border-primary/20 px-5 py-4 bg-slate-950/40">
         <div>
           <h2 className="text-sm font-semibold text-white">
             Average First Response Time

@@ -65,7 +65,7 @@ export function AppearancePanel() {
                 : "border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-700 hover:text-white"
             )}
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Moon className="h-6 w-6" />
             </div>
             <div className="flex-1">

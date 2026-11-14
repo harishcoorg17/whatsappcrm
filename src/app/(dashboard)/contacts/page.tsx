@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -191,34 +192,29 @@ export default function ContactsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">
-            Contacts
-          </h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Manage your audience database.{' '}
-            {totalCount > 0 && `${totalCount} total contacts.`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setImportOpen(true)}
-            className="border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white"
-          >
-            <Upload className="size-4" />
-            Import CSV
-          </Button>
-          <Button
-            onClick={openAddForm}
-            className="from-primary shadow-primary/25 bg-gradient-to-r via-indigo-600 to-cyan-500 font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
-          >
-            <Plus className="size-4" />
-            Add Contact
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Contacts"
+        description={`Manage your audience database.${totalCount > 0 ? ` ${totalCount} total contacts.` : ''}`}
+        actions={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setImportOpen(true)}
+              className="border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white"
+            >
+              <Upload className="size-4" />
+              Import CSV
+            </Button>
+            <Button
+              onClick={openAddForm}
+              className="from-primary to-brand-hover bg-gradient-to-r font-semibold text-white shadow-lg shadow-primary/25 transition-transform hover:scale-[1.02]"
+            >
+              <Plus className="size-4" />
+              Add Contact
+            </Button>
+          </>
+        }
+      />
 
       {/* Search */}
       <div className="relative max-w-sm">

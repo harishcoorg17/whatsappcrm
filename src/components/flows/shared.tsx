@@ -85,7 +85,7 @@ export const NODE_META: Record<
   send_list: {
     label: "Send list",
     icon: ListPlus,
-    color: "text-indigo-400",
+    color: "text-primary",
   },
   send_media: {
     label: "Send media",

@@ -13,7 +13,7 @@ interface PipelineDonutProps {
 export function PipelineDonut({ data, loading }: PipelineDonutProps) {
   return (
     <section className="flex h-full flex-col glass-card overflow-hidden">
-      <header className="border-b border-violet-500/20 px-5 py-4 bg-slate-950/40">
+      <header className="border-b border-primary/20 px-5 py-4 bg-slate-950/40">
         <h2 className="text-sm font-semibold text-white">Pipeline Value</h2>
         <p className="mt-0.5 text-xs text-slate-500">
           Open deals by stage

@@ -1,0 +1,65 @@
+/* CONVERMESH DESIGN SYSTEM — tokens
+ *
+ * Scoped to `.cm-ds` so it never collides with the legacy palette in
+ * src/app/globals.css. Wrap any subtree in <div class="cm-ds"> (and add
+ * data-theme="dark" for dark mode). To make it the app-wide default later,
+ * change `.cm-ds` to `:root` and `.cm-ds[data-theme="dark"]` to
+ * `[data-theme="dark"]`.
+ */
+
+.cm-ds {
+  /* Brand colors — never change between themes */
+  --cm-teal: #079c91;
+  --cm-navy: #0e314f;
+  --cm-coral: #ff765e;
+  --cm-white: #f5f9f8;
+  --cm-slate: #64748b;
+
+  --cm-action: #067f77;
+  --cm-action-text: #ffffff;
+
+  /* Light theme */
+  --bg-primary: #f5f9f8;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eaf4f2;
+
+  --text-primary: #0e314f;
+  --text-secondary: #64748b;
+  --text-muted: #8290a2;
+
+  --border-color: #dce7e5;
+  --sidebar-bg: #0e314f;
+  --sidebar-text: #ffffff;
+  --sidebar-active: #079c91;
+
+  --button-primary: #067f77;
+  --button-accent: #ff765e;
+
+  /* Derived (theme-aware via the tokens above) */
+  --badge-bg: color-mix(in srgb, var(--cm-teal) 80%, #ffffff);
+  --badge-text: var(--cm-navy);
+  --focus-ring: color-mix(in srgb, var(--cm-teal) 45%, transparent);
+
+  color-scheme: light;
+}
+
+/* DARK THEME */
+.cm-ds[data-theme="dark"] {
+  --bg-primary: #091c2c;
+  --bg-secondary: #102c43;
+  --bg-tertiary: #173a52;
+
+  --text-primary: #f5f9f8;
+  --text-secondary: #a8b4c3;
+  --text-muted: #8497a9;
+
+  --border-color: #29465c;
+  --sidebar-bg: #0e314f;
+  --sidebar-text: #f5f9f8;
+  --sidebar-active: #079c91;
+
+  --button-primary: #067f77;
+  --button-accent: #ff765e;
+
+  color-scheme: dark;
+}

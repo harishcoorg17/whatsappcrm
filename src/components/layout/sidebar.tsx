@@ -24,6 +24,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BrandLogo } from '@/components/brand-logo';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,21 +122,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           'lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none'
         )}
         aria-label="Primary"
+        data-surface="navy"
       >
         {/* Logo row */}
         <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-slate-800/80 px-4">
           <Link href="/dashboard" className="group flex items-center gap-3">
-            <div className="from-primary shadow-primary/30 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br via-indigo-600 to-cyan-500 text-white shadow-lg transition-transform group-hover:scale-105">
-              <MessageSquare className="h-5 w-5" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold tracking-tight text-white">
-                Novacompass
-              </span>
-              <span className="font-mono text-[10px] text-slate-400">
-                Multi-Channel Suite
-              </span>
-            </div>
+            <BrandLogo
+              onDark
+              height={28}
+              className="transition-transform group-hover:scale-105"
+            />
           </Link>
           <button
             type="button"
@@ -219,7 +215,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     className={cn(
                       'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 lg:py-2.5',
                       isActive
-                        ? 'from-primary/20 to-primary/5 text-primary border-primary/30 border bg-gradient-to-r font-semibold shadow-[0_0_15px_rgba(139,92,246,0.2)]'
+                        ? 'from-primary/20 to-primary/5 text-primary border-primary/30 border bg-gradient-to-r font-semibold shadow-[0_0_15px_rgba(1,195,146,0.18)]'
                         : 'text-slate-400 hover:border hover:border-slate-800/60 hover:bg-slate-900/60 hover:text-slate-200'
                     )}
                   >
@@ -265,7 +261,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     className={cn(
                       'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 lg:py-2.5',
                       isActive
-                        ? 'from-primary/20 to-primary/5 text-primary border-primary/30 border bg-gradient-to-r font-semibold shadow-[0_0_15px_rgba(139,92,246,0.2)]'
+                        ? 'from-primary/20 to-primary/5 text-primary border-primary/30 border bg-gradient-to-r font-semibold shadow-[0_0_15px_rgba(1,195,146,0.18)]'
                         : 'text-slate-400 hover:border hover:border-slate-800/60 hover:bg-slate-900/60 hover:text-slate-200'
                     )}
                   >

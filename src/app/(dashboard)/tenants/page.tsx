@@ -12,6 +12,8 @@ import {
   Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -329,18 +331,17 @@ export default function TenantsPage() {
   return (
     <div className="mx-auto max-w-5xl p-6">
       <Toaster richColors />
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Tenants</h1>
-          <p className="mt-0.5 text-sm text-slate-400">
-            Manage all Novacompass WhatsApp CRM tenants
-          </p>
-        </div>
-        <Button onClick={() => setShowNew(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Tenant
-        </Button>
-      </div>
+      <PageHeader
+        className="mb-6"
+        title="Tenants"
+        description="Manage all ConverMesh WhatsApp CRM tenants"
+        actions={
+          <Button onClick={() => setShowNew(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Tenant
+          </Button>
+        }
+      />
 
       <div className="relative mb-4">
         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -357,12 +358,11 @@ export default function TenantsPage() {
           <div className="border-primary h-8 w-8 animate-spin rounded-full border-b-2" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-3 py-20 text-slate-500">
-          <Building2 className="h-12 w-12 opacity-30" />
-          <p className="text-sm">
-            {search ? 'No tenants match your search' : 'No tenants yet'}
-          </p>
-        </div>
+        <EmptyState
+          icon={Building2}
+          title={search ? 'No tenants match your search' : 'No tenants yet'}
+          className="py-20"
+        />
       ) : (
         <div className="space-y-3">
           {filtered.map((t) => {

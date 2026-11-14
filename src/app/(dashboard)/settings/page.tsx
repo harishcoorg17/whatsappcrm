@@ -11,6 +11,7 @@ import {
   Mail,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { PageHeader } from '@/components/ui/page-header';
 import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { EmailConfig } from '@/components/settings/email-config';
 import { TemplateManager } from '@/components/settings/template-manager';
@@ -60,13 +61,10 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Settings</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Manage your profile, WhatsApp® API, Email Gateway, message templates,
-          and tags.
-        </p>
-      </div>
+      <PageHeader
+        title="Settings"
+        description="Manage your profile, WhatsApp® API, Email Gateway, message templates, and tags."
+      />
 
       <Tabs value={tab} onValueChange={(v) => onChange(v as TabValue)}>
         <TabsList className="border border-slate-700 bg-slate-900">

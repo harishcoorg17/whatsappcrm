@@ -33,10 +33,10 @@ export function QuickActions() {
             href={a.href}
             className="group flex items-center gap-3.5 glass-card-hover px-4 py-3.5"
           >
-            <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/90 border border-violet-500/20 ${a.tint} shadow-inner group-hover:scale-110 transition-transform`}>
+            <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-slate-900/90 border border-primary/20 ${a.tint} shadow-inner group-hover:scale-110 transition-transform`}>
               <Icon className="h-4 w-4" />
             </div>
-            <span className="text-sm font-semibold text-white group-hover:text-cyan-300 transition-colors">{a.label}</span>
+            <span className="text-sm font-semibold text-white group-hover:text-primary transition-colors">{a.label}</span>
           </Link>
         )
       })}

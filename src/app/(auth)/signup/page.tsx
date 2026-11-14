@@ -14,7 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { MessageSquare, CheckCircle } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('');
@@ -108,7 +109,7 @@ export default function SignupPage() {
       <Card className="w-full max-w-md border-slate-800 bg-slate-900">
         <CardHeader className="items-center text-center">
           <div className="bg-primary/10 mb-2 flex h-12 w-12 items-center justify-center rounded-xl">
-            <MessageSquare className="text-primary h-6 w-6" />
+            <BrandLogo height={28} />
           </div>
           <CardTitle className="text-xl text-white">Create account</CardTitle>
           <CardDescription className="text-slate-400">

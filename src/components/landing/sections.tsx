@@ -1,11 +1,8 @@
 import Link from 'next/link';
-import { Check, MessageCircle } from 'lucide-react';
+import { Check } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
+import { Button } from '@/components/ui/button';
 import { BENEFITS, COMPARISON, EASE_POINTS, HOW_IT_WORKS } from './content';
-
-const PRIMARY_BUTTON =
-  'inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-[var(--primary-hover)]';
-const SECONDARY_BUTTON =
-  'inline-flex items-center justify-center rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent';
 
 function SectionHeading({
   eyebrow,
@@ -33,19 +30,18 @@ function SectionHeading({
 
 export function LandingHeader() {
   return (
-    <header className="border-border bg-background/80 sticky top-0 z-30 border-b backdrop-blur">
+    <header className="border-border bg-background sticky top-0 z-30 border-b backdrop-blur">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <MessageCircle className="text-primary size-5" aria-hidden />
-          Novacompass WhatsApp CRM
+          <BrandLogo height={28} priority />
         </Link>
         <nav className="flex items-center gap-2">
-          <Link href="/login" className={SECONDARY_BUTTON}>
+          <Button render={<Link href="/login" />} variant="outline" size="lg">
             Sign in
-          </Link>
-          <Link href="/signup" className={PRIMARY_BUTTON}>
+          </Button>
+          <Button render={<Link href="/signup" />} size="lg">
             Get started
-          </Link>
+          </Button>
         </nav>
       </div>
     </header>
@@ -65,12 +61,12 @@ export function Hero() {
         no developer.
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-        <Link href="/signup" className={PRIMARY_BUTTON}>
+        <Button render={<Link href="/signup" />} size="lg">
           Connect your number
-        </Link>
-        <a href="#how-it-works" className={SECONDARY_BUTTON}>
+        </Button>
+        <Button render={<a href="#how-it-works" />} variant="outline" size="lg">
           See how it works
-        </a>
+        </Button>
       </div>
     </section>
   );
@@ -135,7 +131,7 @@ export function Comparison() {
       <div className="border-border mt-12 overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[34rem] text-left text-sm">
           <caption className="sr-only">
-            Typical WhatsApp tools compared with Novacompass WhatsApp CRM
+            Typical WhatsApp tools compared with ConverMesh WhatsApp CRM
           </caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>
@@ -146,7 +142,7 @@ export function Comparison() {
                 Typical tools
               </th>
               <th scope="col" className="text-primary px-4 py-3 font-medium">
-                Novacompass
+                ConverMesh
               </th>
             </tr>
           </thead>
@@ -205,9 +201,9 @@ export function FinalCta() {
         Ready to bring your WhatsApp into one place?
       </h2>
       <div className="mt-8 flex justify-center">
-        <Link href="/signup" className={PRIMARY_BUTTON}>
+        <Button render={<Link href="/signup" />} size="lg">
           Create your account
-        </Link>
+        </Button>
       </div>
     </section>
   );
@@ -216,7 +212,7 @@ export function FinalCta() {
 export function LandingFooter() {
   return (
     <footer className="border-border text-muted-foreground border-t py-8 text-center text-sm">
-      © {new Date().getFullYear()} Novacompass WhatsApp CRM
+      © {new Date().getFullYear()} ConverMesh WhatsApp CRM
     </footer>
   );
 }

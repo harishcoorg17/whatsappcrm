@@ -11,6 +11,7 @@ import { Step3Personalize } from '@/components/broadcasts/step3-personalize';
 import { Step4ScheduleSend } from '@/components/broadcasts/step4-schedule-send';
 import { useBroadcastSending } from '@/hooks/use-broadcast-sending';
 import { Check } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 
 const steps = [
   { label: 'Template', key: 'template' },
@@ -121,12 +122,10 @@ export default function NewBroadcastPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white">New Broadcast</h1>
-        <p className="mt-1 text-sm text-slate-400">
-          Create and send a broadcast message to your contacts.
-        </p>
-      </div>
+      <PageHeader
+        title="New Broadcast"
+        description="Create and send a broadcast message to your contacts."
+      />
 
       {/* Step Indicator */}
       <div className="flex items-center justify-between">

@@ -21,6 +21,8 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import type { Automation } from "@/types"
 import { Button } from "@/components/ui/button"
+import { PageHeader } from "@/components/ui/page-header"
+import { EmptyState } from "@/components/ui/empty-state"
 import { Switch } from "@/components/ui/switch"
 import {
   DropdownMenu,
@@ -155,21 +157,19 @@ export default function AutomationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Automations</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Build workflows that react to WhatsApp® events automatically.
-          </p>
-        </div>
-        <Button
-          onClick={() => router.push("/automations/new")}
-          className="bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="h-4 w-4" />
-          Create Automation
-        </Button>
-      </div>
+      <PageHeader
+        title="Automations"
+        description="Build workflows that react to WhatsApp® events automatically."
+        actions={
+          <Button
+            onClick={() => router.push("/automations/new")}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            <Plus className="h-4 w-4" />
+            Create Automation
+          </Button>
+        }
+      />
 
       {showTemplates && (
         <section>
@@ -197,15 +197,12 @@ export default function AutomationsPage() {
       )}
 
       {automations.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-slate-800 bg-slate-900/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-primary" />
-          </div>
-          <p className="mt-3 text-sm font-medium text-white">No automations yet</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Pick a template above or create one from scratch.
-          </p>
-        </div>
+        <EmptyState
+          icon={Zap}
+          title="No automations yet"
+          description="Pick a template above or create one from scratch."
+          className="h-48"
+        />
       ) : (
         <ul className="space-y-3">
           {automations.map((a) => (

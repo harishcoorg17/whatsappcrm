@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast } from '@/types';
 import { Button } from '@/components/ui/button';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/empty-state';
 import {
   Table,
   TableBody,
@@ -174,37 +176,36 @@ export default function BroadcastsPage() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Broadcasts</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Send bulk messages to your contacts using official Meta approved templates.
-          </p>
-        </div>
-        <Button
-          onClick={() => router.push('/broadcasts/new')}
-          className="bg-gradient-to-r from-primary via-indigo-600 to-cyan-500 text-white font-semibold shadow-lg shadow-primary/30 hover:scale-[1.02] transition-transform"
-        >
-          <Plus className="h-4 w-4" />
-          New Broadcast
-        </Button>
-      </div>
-
-      {broadcasts.length === 0 ? (
-        <div className="glass-card flex h-64 flex-col items-center justify-center p-6 text-center">
-          <Radio className="mb-3 h-10 w-10 text-primary animate-pulse" />
-          <p className="text-base font-semibold text-white">No broadcasts yet</p>
-          <p className="mt-1 text-xs text-slate-400">
-            Create your first broadcast campaign to reach your contacts at scale.
-          </p>
+      <PageHeader
+        title="Broadcasts"
+        description="Send bulk messages to your contacts using official Meta approved templates."
+        actions={
           <Button
             onClick={() => router.push('/broadcasts/new')}
-            className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90 shadow-md shadow-primary/20"
+            className="from-primary to-brand-hover bg-gradient-to-r font-semibold text-white shadow-lg shadow-primary/30 transition-transform hover:scale-[1.02]"
           >
             <Plus className="h-4 w-4" />
             New Broadcast
           </Button>
-        </div>
+        }
+      />
+
+      {broadcasts.length === 0 ? (
+        <EmptyState
+          icon={Radio}
+          title="No broadcasts yet"
+          description="Create your first broadcast campaign to reach your contacts at scale."
+          className="glass-card h-64"
+          action={
+            <Button
+              onClick={() => router.push('/broadcasts/new')}
+              className="bg-primary text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              New Broadcast
+            </Button>
+          }
+        />
       ) : (
         <div className="glass-card overflow-hidden">
           <Table>

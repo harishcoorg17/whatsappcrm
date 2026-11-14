@@ -3,7 +3,8 @@
 import { Suspense } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { MessageSquare, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 import { toast, Toaster } from 'sonner';
 import { GRAPH_VERSION } from '@/lib/whatsapp/meta-config';
@@ -464,17 +465,7 @@ export default function OnboardingPage() {
       <Toaster richColors />
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-3">
-          <div className="from-primary shadow-primary/30 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br via-indigo-600 to-cyan-500 shadow-lg">
-            <MessageSquare className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <p className="text-lg leading-none font-bold text-white">
-              Novacompass
-            </p>
-            <p className="text-xs text-slate-400">
-              WhatsApp CRM · Tenant Onboarding
-            </p>
-          </div>
+          <BrandLogo height={44} />
         </div>
         <Suspense
           fallback={

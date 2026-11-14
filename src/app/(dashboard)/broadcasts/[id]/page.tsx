@@ -382,7 +382,7 @@ export default function BroadcastDetailPage() {
           value={broadcast.replied_count}
           total={broadcast.total_recipients}
           icon={<MessageCircle className="h-4 w-4" />}
-          color="bg-indigo-500/10 text-indigo-400"
+          color="bg-primary/10 text-primary"
         />
         <StatCard
           label="Failed"
