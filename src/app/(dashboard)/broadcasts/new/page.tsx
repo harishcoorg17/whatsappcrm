@@ -22,7 +22,8 @@ const steps = [
 
 export default function NewBroadcastPage() {
   const router = useRouter();
-  const { createAndSendBroadcast, isProcessing, progress } = useBroadcastSending();
+  const { createAndSendBroadcast, isProcessing, progress } =
+    useBroadcastSending();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [template, setTemplate] = useState<MessageTemplate | null>(null);
@@ -120,7 +121,7 @@ export default function NewBroadcastPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
+    <div className="w-full space-y-8">
       {/* Header */}
       <PageHeader
         title="New Broadcast"
@@ -141,7 +142,7 @@ export default function NewBroadcastPage() {
                     isCompleted
                       ? 'bg-primary text-primary-foreground'
                       : isActive
-                        ? 'border-2 border-primary bg-primary/10 text-primary'
+                        ? 'border-primary bg-primary/10 text-primary border-2'
                         : 'border border-slate-700 bg-slate-800 text-slate-500'
                   }`}
                 >
@@ -149,7 +150,11 @@ export default function NewBroadcastPage() {
                 </div>
                 <span
                   className={`hidden text-sm font-medium sm:block ${
-                    isActive ? 'text-white' : isCompleted ? 'text-primary' : 'text-slate-500'
+                    isActive
+                      ? 'text-white'
+                      : isCompleted
+                        ? 'text-primary'
+                        : 'text-slate-500'
                   }`}
                 >
                   {step.label}

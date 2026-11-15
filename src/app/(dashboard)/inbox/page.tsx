@@ -582,7 +582,7 @@ export default function InboxPage() {
             (shows its own empty-state if no thread is picked yet). */}
         <div
           className={cn(
-            'flex h-full flex-1 lg:flex',
+            'flex h-full min-w-0 flex-1 lg:flex',
             hasActiveConv ? 'flex' : 'hidden lg:flex'
           )}
         >
@@ -602,7 +602,7 @@ export default function InboxPage() {
         </div>
 
         {/* Right panel: Contact sidebar — desktop only. */}
-        <div className="hidden lg:block">
+        <div className="hidden shrink-0 lg:block">
           <ContactSidebar contact={activeContact} />
         </div>
       </div>

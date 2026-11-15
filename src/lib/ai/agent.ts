@@ -169,9 +169,11 @@ export async function runAiAgent(
       now,
     });
     if (!verdict.answer) {
-      if (verdict.reason === 'not_configured') {
-        console.warn('[ai-agent] enabled but no provider/key saved');
-      }
+      // Quiet on purpose, so say why: this is the first thing to check when
+      // "the AI did not answer".
+      console.log(
+        `[ai-agent] skipped (${verdict.reason}) conversation=${input.conversationId}`
+      );
       return 'skipped';
     }
 

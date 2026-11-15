@@ -739,7 +739,7 @@ export function MessageThread({
     : 'Assign';
 
   return (
-    <div className={cn('flex flex-1 flex-col', DOODLE_BG_CLASSES)}>
+    <div className={cn('flex min-w-0 flex-1 flex-col', DOODLE_BG_CLASSES)}>
       {conversation.status === 'pending' && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/30 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
           <span>

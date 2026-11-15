@@ -3,8 +3,10 @@ import {
   AI_PROVIDERS,
   buildProviderRequest,
   DEFAULT_MODELS,
+  describeProviderError,
   extractProviderText,
   isAiProvider,
+  ProviderHttpError,
   type ProviderCall,
 } from './providers';
 
@@ -106,5 +108,49 @@ describe('extractProviderText', () => {
       expect(extractProviderText(p, {})).toBe('');
       expect(extractProviderText(p, { choices: [] })).toBe('');
     }
+  });
+});
+
+describe('describeProviderError', () => {
+  const failure = (status: number) =>
+    describeProviderError(new ProviderHttpError('openai', status), 'openai');
+
+  it('points at the key for 401 and 403', () => {
+    expect(failure(401)).toContain('API key');
+    expect(failure(403)).toContain('API key');
+  });
+
+  it('points at the model for 400 and 404', () => {
+    expect(failure(400)).toContain('model');
+    expect(failure(404)).toContain('model');
+  });
+
+  it('points at billing for 429', () => {
+    expect(failure(429)).toContain('quota');
+  });
+
+  it('keeps the status for other errors', () => {
+    expect(failure(503)).toContain('503');
+  });
+
+  it('names the provider', () => {
+    expect(failure(401)).toContain('OpenAI');
+  });
+
+  it('handles timeouts and network failures', () => {
+    const timeout = new Error('aborted');
+    timeout.name = 'TimeoutError';
+    expect(describeProviderError(timeout, 'gemini')).toContain('too long');
+    expect(
+      describeProviderError(new TypeError('fetch failed'), 'gemini')
+    ).toContain('Could not reach');
+  });
+
+  it('never echoes anything from the error but the status', () => {
+    const text = describeProviderError(
+      new Error('Bearer sk-secret leaked'),
+      'anthropic'
+    );
+    expect(text).not.toContain('sk-secret');
   });
 });

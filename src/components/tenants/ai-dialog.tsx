@@ -67,6 +67,11 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
   const [clearKey, setClearKey] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
 
   const slug = tenant?.slug ?? null;
   const url = slug ? `/api/tenants/${encodeURIComponent(slug)}/ai` : null;
@@ -107,14 +112,52 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
     void load();
   }, [slug, load]);
 
-  const changeProvider = (provider: AiProvider) =>
+  const changeProvider = (provider: AiProvider) => {
+    setTestResult(null);
     setSettings((s) => ({
       ...s,
       provider,
       model: DEFAULT_MODELS[provider],
     }));
+  };
 
   const keyReady = apiKey.trim() !== '' || (settings.hasKey && !clearKey);
+
+  const testKey = async () => {
+    if (!url) return;
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`${url}/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: settings.provider,
+          model: settings.model,
+          ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        warning?: string;
+      };
+      if (!res.ok) {
+        setTestResult({ ok: false, message: body.error ?? 'Could not test' });
+      } else if (body.ok) {
+        setTestResult({
+          ok: !body.warning,
+          message: body.warning ?? 'Key works. The AI can answer customers.',
+        });
+      } else {
+        setTestResult({ ok: false, message: body.error ?? 'Test failed' });
+      }
+    } catch {
+      setTestResult({ ok: false, message: 'Network error' });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const save = async () => {
     if (!url) return;
@@ -251,6 +294,29 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
                     {clearKey ? 'Keep the saved key' : 'Remove the saved key'}
                   </button>
                 )}
+                <div className="flex items-center gap-3 pt-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={testKey}
+                    disabled={testing || saving || !keyReady}
+                  >
+                    {testing ? 'Testing…' : 'Test key'}
+                  </Button>
+                  {testResult && (
+                    <p
+                      role="status"
+                      className={
+                        testResult.ok
+                          ? 'text-xs text-emerald-400'
+                          : 'text-xs text-amber-400'
+                      }
+                    >
+                      {testResult.message}
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
 

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Loader2,
@@ -13,12 +13,12 @@ import {
   PauseCircle,
   ChevronDown,
   ChevronRight,
-} from "lucide-react";
-import { toast } from "sonner";
-import { format, formatDistanceToNow } from "date-fns";
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { format, formatDistanceToNow } from 'date-fns';
 
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 /**
  * Run history viewer.
@@ -33,12 +33,12 @@ import { cn } from "@/lib/utils";
 interface RunRow {
   id: string;
   status:
-    | "active"
-    | "completed"
-    | "handed_off"
-    | "timed_out"
-    | "paused_by_agent"
-    | "failed";
+    | 'active'
+    | 'completed'
+    | 'handed_off'
+    | 'timed_out'
+    | 'paused_by_agent'
+    | 'failed';
   current_node_key: string | null;
   started_at: string;
   last_advanced_at: string;
@@ -58,37 +58,37 @@ interface EventRow {
 }
 
 const STATUS_META: Record<
-  RunRow["status"],
+  RunRow['status'],
   { label: string; classes: string; icon: typeof Clock }
 > = {
   active: {
-    label: "Active",
-    classes: "border-emerald-600/40 bg-emerald-500/10 text-emerald-300",
+    label: 'Active',
+    classes: 'border-emerald-600/40 bg-emerald-500/10 text-emerald-300',
     icon: PlayCircle,
   },
   completed: {
-    label: "Completed",
-    classes: "border-slate-700 bg-slate-800 text-slate-300",
+    label: 'Completed',
+    classes: 'border-slate-700 bg-slate-800 text-slate-300',
     icon: CircleCheck,
   },
   handed_off: {
-    label: "Handed off",
-    classes: "border-amber-600/40 bg-amber-500/10 text-amber-300",
+    label: 'Handed off',
+    classes: 'border-amber-600/40 bg-amber-500/10 text-amber-300',
     icon: UserPlus,
   },
   timed_out: {
-    label: "Timed out",
-    classes: "border-slate-700 bg-slate-800/60 text-slate-400",
+    label: 'Timed out',
+    classes: 'border-slate-700 bg-slate-800/60 text-slate-400',
     icon: Clock,
   },
   paused_by_agent: {
-    label: "Paused by agent",
-    classes: "border-slate-700 bg-slate-800 text-slate-300",
+    label: 'Paused by agent',
+    classes: 'border-slate-700 bg-slate-800 text-slate-300',
     icon: PauseCircle,
   },
   failed: {
-    label: "Failed",
-    classes: "border-red-600/40 bg-red-500/10 text-red-300",
+    label: 'Failed',
+    classes: 'border-red-600/40 bg-red-500/10 text-red-300',
     icon: CircleAlert,
   },
 };
@@ -161,8 +161,8 @@ export default function FlowRunsPage() {
         <p className="text-sm text-slate-400">Flow not found.</p>
         <button
           type="button"
-          onClick={() => router.push("/flows")}
-          className="text-sm text-primary hover:opacity-80"
+          onClick={() => router.push('/flows')}
+          className="text-primary text-sm hover:opacity-80"
         >
           ← Back to flows
         </button>
@@ -171,7 +171,7 @@ export default function FlowRunsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="w-full p-6">
       <button
         type="button"
         onClick={() => router.push(`/flows/${flow.id}`)}
@@ -182,8 +182,8 @@ export default function FlowRunsPage() {
       </button>
       <h1 className="text-xl font-semibold text-white">Runs</h1>
       <p className="mt-1 text-sm text-slate-400">
-        The 50 most recent times this flow ran. Expand a row to see the engine&apos;s
-        per-step log.
+        The 50 most recent times this flow ran. Expand a row to see the
+        engine&apos;s per-step log.
       </p>
 
       {runs.length === 0 ? (
@@ -222,7 +222,7 @@ function RunCard({
   const meta = STATUS_META[run.status];
   const StatusIcon = meta.icon;
   const contactLabel =
-    run.contact?.name?.trim() || run.contact?.phone || "Unknown contact";
+    run.contact?.name?.trim() || run.contact?.phone || 'Unknown contact';
   const duration = run.ended_at
     ? formatDistanceToNow(new Date(run.ended_at), {
         addSuffix: false,
@@ -245,18 +245,18 @@ function RunCard({
             <span className="truncate text-sm font-medium text-white">
               {contactLabel}
             </span>
-            <Badge variant="outline" className={cn("gap-1", meta.classes)}>
+            <Badge variant="outline" className={cn('gap-1', meta.classes)}>
               <StatusIcon className="h-3 w-3" />
               {meta.label}
             </Badge>
-            {run.status === "active" && run.current_node_key && (
+            {run.status === 'active' && run.current_node_key && (
               <code className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-400">
                 at {run.current_node_key}
               </code>
             )}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
-            <span>Started {format(new Date(run.started_at), "PP p")}</span>
+            <span>Started {format(new Date(run.started_at), 'PP p')}</span>
             {run.reprompt_count > 0 && (
               <span>· {run.reprompt_count} re-prompts</span>
             )}
@@ -292,25 +292,25 @@ function RunCard({
 }
 
 const EVENT_COLOR: Record<string, string> = {
-  started: "text-emerald-300",
-  node_entered: "text-slate-300",
-  message_sent: "text-sky-300",
-  reply_received: "text-primary",
-  fallback_fired: "text-amber-300",
-  handoff: "text-amber-300",
-  timeout: "text-slate-500",
-  error: "text-red-300",
-  completed: "text-emerald-300",
+  started: 'text-emerald-300',
+  node_entered: 'text-slate-300',
+  message_sent: 'text-sky-300',
+  reply_received: 'text-primary',
+  fallback_fired: 'text-amber-300',
+  handoff: 'text-amber-300',
+  timeout: 'text-slate-500',
+  error: 'text-red-300',
+  completed: 'text-emerald-300',
 };
 
 function EventLine({ ev }: { ev: EventRow }) {
-  const cls = EVENT_COLOR[ev.event_type] ?? "text-slate-400";
+  const cls = EVENT_COLOR[ev.event_type] ?? 'text-slate-400';
   return (
     <div className="flex items-start gap-2 rounded-md px-2 py-1 text-xs">
       <span className="w-32 shrink-0 text-[10px] text-slate-500">
-        {format(new Date(ev.created_at), "HH:mm:ss")}
+        {format(new Date(ev.created_at), 'HH:mm:ss')}
       </span>
-      <span className={cn("w-32 shrink-0 font-mono text-[10px]", cls)}>
+      <span className={cn('w-32 shrink-0 font-mono text-[10px]', cls)}>
         {ev.event_type}
       </span>
       {ev.node_key && (
@@ -330,11 +330,11 @@ function EventLine({ ev }: { ev: EventRow }) {
 function summarizePayload(payload: Record<string, unknown>): string {
   // Show the keys that matter most to a human debugger; full JSON is
   // available via the "Captured vars" details panel for the run.
-  const keys = ["reply_id", "captured_key", "reason", "advancing_to"];
+  const keys = ['reply_id', 'captured_key', 'reason', 'advancing_to'];
   for (const k of keys) {
     if (k in payload && payload[k] !== null && payload[k] !== undefined) {
       return `${k}=${String(payload[k]).slice(0, 80)}`;
     }
   }
-  return "";
+  return '';
 }

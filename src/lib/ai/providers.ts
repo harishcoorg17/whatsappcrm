@@ -151,6 +151,43 @@ export function extractProviderText(
   }
 }
 
+export class ProviderHttpError extends Error {
+  constructor(
+    readonly provider: AiProvider,
+    readonly status: number
+  ) {
+    super(`${provider} returned HTTP ${status}`);
+    this.name = 'ProviderHttpError';
+  }
+}
+
+/** A message a tenant admin can act on, for a failed provider call. */
+export function describeProviderError(
+  error: unknown,
+  provider: AiProvider
+): string {
+  const name = PROVIDER_LABELS[provider];
+  if (error instanceof ProviderHttpError) {
+    switch (error.status) {
+      case 400:
+        return `${name} rejected the request. Check the model name.`;
+      case 401:
+      case 403:
+        return `${name} rejected the API key. Check it is correct and belongs to ${name}.`;
+      case 404:
+        return `${name} does not know that model. Check the model name.`;
+      case 429:
+        return `${name} says the key is out of quota or rate limited. Check billing on your ${name} account.`;
+      default:
+        return `${name} returned an error (HTTP ${error.status}). Try again in a moment.`;
+    }
+  }
+  if (error instanceof Error && error.name === 'TimeoutError') {
+    return `${name} took too long to answer. Try again in a moment.`;
+  }
+  return `Could not reach ${name}. Try again in a moment.`;
+}
+
 /** Calls the provider and returns its text. Throws with the HTTP status. */
 export async function callProvider(call: ProviderCall): Promise<string> {
   const req = buildProviderRequest(call);
@@ -162,7 +199,7 @@ export async function callProvider(call: ProviderCall): Promise<string> {
     signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
   if (!res.ok) {
-    throw new Error(`${call.provider} returned HTTP ${res.status}`);
+    throw new ProviderHttpError(call.provider, res.status);
   }
   return extractProviderText(call.provider, await res.json());
 }

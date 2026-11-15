@@ -375,7 +375,7 @@ export default function TenantsPage() {
   );
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="w-full p-6">
       <Toaster richColors />
       <PageHeader
         className="mb-6"
@@ -416,75 +416,77 @@ export default function TenantsPage() {
             return (
               <div
                 key={t.id}
-                className="flex items-center gap-4 rounded-xl border border-slate-800 bg-slate-900 p-4"
+                className="rounded-xl border border-slate-800 bg-slate-900 p-4"
               >
-                <div className="bg-primary/10 border-primary/20 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border">
-                  <Building2 className="text-primary h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold text-white">{t.name}</p>
-                    <span
-                      className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[t.status]}`}
-                    >
-                      <Icon className="h-3 w-3" />
-                      {t.status}
-                    </span>
-                    <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
-                      {t.plan}
-                    </span>
+                <div className="flex items-start gap-4">
+                  <div className="bg-primary/10 border-primary/20 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border">
+                    <Building2 className="text-primary h-5 w-5" />
                   </div>
-                  <p className="mt-0.5 font-mono text-sm text-slate-400">
-                    /{t.slug}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                    {(numbersByTenant[t.id] ?? []).length === 0 ? (
-                      <span className="text-xs text-slate-500">
-                        No WhatsApp numbers connected
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold text-white">{t.name}</p>
+                      <span
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[t.status]}`}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {t.status}
                       </span>
-                    ) : (
-                      (numbersByTenant[t.id] ?? []).map((n) => (
-                        <span
-                          key={n.phone_number_id}
-                          title={`ID ${n.phone_number_id}`}
-                          className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                            n.status === 'active'
-                              ? 'border-slate-700 text-slate-300'
-                              : 'border-amber-700 text-amber-400'
-                          }`}
-                        >
-                          {n.label ??
-                            n.display_phone_number ??
-                            n.phone_number_id}
-                          {n.display_phone_number && n.label
-                            ? ` · ${n.display_phone_number}`
-                            : ''}
-                          {n.is_primary ? ' · primary' : ''}
-                          {n.status !== 'active' ? ' · off' : ''}
+                      <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">
+                        {t.plan}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 font-mono text-sm text-slate-400">
+                      /{t.slug}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {(numbersByTenant[t.id] ?? []).length === 0 ? (
+                        <span className="text-xs text-slate-500">
+                          No WhatsApp numbers connected
                         </span>
-                      ))
-                    )}
-                  </div>
-                  <div className="mt-1 flex items-center gap-4">
-                    {t.waba_id ? (
-                      <span className="text-xs text-slate-500">
-                        WABA: {t.waba_id}
+                      ) : (
+                        (numbersByTenant[t.id] ?? []).map((n) => (
+                          <span
+                            key={n.phone_number_id}
+                            title={`ID ${n.phone_number_id}`}
+                            className={`rounded-full border px-2 py-0.5 text-[11px] whitespace-nowrap ${
+                              n.status === 'active'
+                                ? 'border-slate-700 text-slate-300'
+                                : 'border-amber-700 text-amber-400'
+                            }`}
+                          >
+                            {n.label ??
+                              n.display_phone_number ??
+                              n.phone_number_id}
+                            {n.display_phone_number && n.label
+                              ? ` · ${n.display_phone_number}`
+                              : ''}
+                            {n.is_primary ? ' · primary' : ''}
+                            {n.status !== 'active' ? ' · off' : ''}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-1 flex items-center gap-4">
+                      {t.waba_id ? (
+                        <span className="text-xs text-slate-500">
+                          WABA: {t.waba_id}
+                        </span>
+                      ) : t.status === 'active' ? (
+                        <span className="text-xs text-sky-400">
+                          Connected — set WABA credentials
+                        </span>
+                      ) : (
+                        <span className="text-xs text-amber-500">
+                          WhatsApp not connected
+                        </span>
+                      )}
+                      <span className="text-xs text-slate-600">
+                        Created {new Date(t.created_at).toLocaleDateString()}
                       </span>
-                    ) : t.status === 'active' ? (
-                      <span className="text-xs text-sky-400">
-                        Connected — set WABA credentials
-                      </span>
-                    ) : (
-                      <span className="text-xs text-amber-500">
-                        WhatsApp not connected
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-600">
-                      Created {new Date(t.created_at).toLocaleDateString()}
-                    </span>
+                    </div>
                   </div>
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-3">
                   <button
                     onClick={() => openEditCreds(t)}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
