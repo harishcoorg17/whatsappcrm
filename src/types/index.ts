@@ -24,6 +24,8 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** Marketing consent; absent until the consent migration (035) is applied. */
+  opt_in_status?: 'unknown' | 'opted_in' | 'opted_out';
   created_at: string;
   updated_at: string;
 }

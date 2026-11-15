@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
+import { filterOptedOutRecipients } from '@/lib/whatsapp/consent';
 import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
 import {
@@ -18,7 +19,7 @@ import {
 
 interface BroadcastResult {
   phone: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'skipped';
   whatsapp_message_id?: string;
   error?: string;
 }
@@ -159,7 +160,21 @@ export async function POST(request: Request) {
     let sentCount = 0;
     let failedCount = 0;
 
-    for (const recipient of recipients) {
+    // Never message someone who replied STOP (or was opted out by hand).
+    const { allowed, skipped } = await filterOptedOutRecipients(
+      supabase,
+      user.id,
+      recipients
+    );
+    for (const recipient of skipped) {
+      results.push({
+        phone: recipient.phone,
+        status: 'skipped',
+        error: 'Opted out of marketing messages',
+      });
+    }
+
+    for (const recipient of allowed) {
       const sanitized = sanitizePhoneForMeta(recipient.phone);
 
       if (!isValidE164(sanitized)) {
@@ -231,6 +246,7 @@ export async function POST(request: Request) {
       total: recipients.length,
       sent: sentCount,
       failed: failedCount,
+      skipped: skipped.length,
       results,
     });
   } catch (error) {

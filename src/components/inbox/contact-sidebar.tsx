@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
+import { useState, useEffect, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { cn } from '@/lib/utils';
+import type { Contact, Deal, ContactNote, Tag } from '@/types';
 import {
   Phone,
   Mail,
@@ -14,10 +14,11 @@ import {
   DollarSign,
   StickyNote,
   Plus,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { format } from "date-fns";
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { format } from 'date-fns';
+import { ConsentControl } from './consent-control';
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -28,7 +29,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
-  const [newNote, setNewNote] = useState("");
+  const [newNote, setNewNote] = useState('');
   const [addingNote, setAddingNote] = useState(false);
 
   const fetchContactData = useCallback(async () => {
@@ -39,19 +40,19 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     // Fetch deals, notes, and tags in parallel
     const [dealsRes, notesRes, tagsRes] = await Promise.all([
       supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+        .from('deals')
+        .select('*, stage:pipeline_stages(*)')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false }),
       supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
+        .from('contact_notes')
+        .select('*')
+        .eq('contact_id', contact.id)
+        .order('created_at', { ascending: false }),
       supabase
-        .from("contact_tags")
-        .select("id, tag_id, tags(*)")
-        .eq("contact_id", contact.id),
+        .from('contact_tags')
+        .select('id, tag_id, tags(*)')
+        .eq('contact_id', contact.id),
     ]);
 
     if (dealsRes.data) setDeals(dealsRes.data);
@@ -95,7 +96,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     const user = session?.user;
 
     const { data, error } = await supabase
-      .from("contact_notes")
+      .from('contact_notes')
       .insert({
         contact_id: contact.id,
         user_id: user?.id,
@@ -106,7 +107,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
     if (!error && data) {
       setNotes((prev) => [data, ...prev]);
-      setNewNote("");
+      setNewNote('');
     }
     setAddingNote(false);
   }, [contact, newNote]);
@@ -156,7 +157,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               <Phone className="h-4 w-4 text-slate-500" />
               <span className="flex-1 text-left">{contact.phone}</span>
               {copied ? (
-                <Check className="h-3 w-3 text-primary" />
+                <Check className="text-primary h-3 w-3" />
               ) : (
                 <Copy className="h-3 w-3 text-slate-600" />
               )}
@@ -173,9 +174,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Divider */}
           <div className="my-4 border-t border-slate-800" />
 
+          {/* Marketing consent */}
+          <ConsentControl
+            contactId={contact.id}
+            status={contact.opt_in_status ?? 'unknown'}
+          />
+
           {/* Tags */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
               <TagIcon className="h-3 w-3" />
               Tags
             </div>
@@ -204,7 +211,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Active Deals */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
               <DollarSign className="h-3 w-3" />
               Active Deals
             </div>
@@ -222,7 +229,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
                       <span>
-                        {deal.currency ?? "$"}
+                        {deal.currency ?? '$'}
                         {deal.value.toLocaleString()}
                       </span>
                       {deal.stage && (
@@ -248,7 +255,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Notes */}
           <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
               <StickyNote className="h-3 w-3" />
               Notes
             </div>
@@ -259,11 +266,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                   onChange={(e) => setNewNote(e.target.value)}
                   placeholder="Add a note..."
                   rows={2}
-                  className="flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-primary/50"
+                  className="focus:border-primary/50 flex-1 resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white placeholder-slate-500 outline-none"
                 />
                 <Button
                   size="sm"
-                  className="h-auto bg-primary px-2 hover:bg-primary/90"
+                  className="bg-primary hover:bg-primary/90 h-auto px-2"
                   onClick={handleAddNote}
                   disabled={!newNote.trim() || addingNote}
                 >
@@ -277,11 +284,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     key={note.id}
                     className="rounded-lg bg-slate-800 px-3 py-2"
                   >
-                    <p className="whitespace-pre-wrap text-xs text-slate-300">
+                    <p className="text-xs whitespace-pre-wrap text-slate-300">
                       {note.note_text}
                     </p>
                     <p className="mt-1 text-[10px] text-slate-600">
-                      {format(new Date(note.created_at), "MMM d, yyyy HH:mm")}
+                      {format(new Date(note.created_at), 'MMM d, yyyy HH:mm')}
                     </p>
                   </div>
                 ))}

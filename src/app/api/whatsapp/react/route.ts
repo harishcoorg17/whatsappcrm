@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
 import { loadCredentialsForConversation } from '@/lib/whatsapp/credentials';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
@@ -75,7 +76,6 @@ export async function POST(request: Request) {
       .from('conversations')
       .select('id, user_id, contact:contacts(phone)')
       .eq('id', targetMessage.conversation_id)
-      .eq('user_id', user.id)
       .maybeSingle();
 
     if (convError || !conversation) {
@@ -96,9 +96,13 @@ export async function POST(request: Request) {
     }
 
     // The number of the conversation's own tenant (legacy config as fallback).
+    // Row level security already limited the lookup above to conversations the
+    // caller can see (owner or tenant member). When an agent reacts, read the
+    // tenant credentials as the owner with the server client.
+    const ownerUserId: string = conversation.user_id;
     const credentials = await loadCredentialsForConversation(
-      supabase,
-      user.id,
+      ownerUserId === user.id ? supabase : supabaseAdmin(),
+      ownerUserId,
       conversation.id
     );
 

@@ -11,6 +11,11 @@ import { canManageTenant } from '@/lib/whatsapp/embedded-signup';
 export interface AuthorizedTenant {
   ok: true;
   userId: string;
+  /**
+   * 'owner' = the tenant's owner or a platform admin; 'admin' = a team admin
+   * (only returned when the caller asked to allow team admins).
+   */
+  level: 'owner' | 'admin';
   tenant: {
     id: string;
     owner_user_id: string | null;
@@ -36,7 +41,8 @@ export function problem(
 }
 
 export async function authorizeTenantAccess(
-  slug: string
+  slug: string,
+  options: { allowTeamAdmins?: boolean } = {}
 ): Promise<TenantAccess> {
   const supabase = await createClient();
   const {
@@ -67,8 +73,19 @@ export async function authorizeTenantAccess(
     ownerUserId: tenant.owner_user_id,
     userId: user.id,
   });
-  if (!allowed)
-    return problem('You are not allowed to manage this tenant', 403);
+  if (allowed) return { ok: true, userId: user.id, level: 'owner', tenant, db };
 
-  return { ok: true, userId: user.id, tenant, db };
+  if (options.allowTeamAdmins) {
+    const { data: membership } = await db
+      .from('crm_tenant_members')
+      .select('role')
+      .eq('tenant_id', tenant.id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (membership?.role === 'admin') {
+      return { ok: true, userId: user.id, level: 'admin', tenant, db };
+    }
+  }
+
+  return problem('You are not allowed to manage this tenant', 403);
 }

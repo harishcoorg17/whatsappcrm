@@ -49,14 +49,29 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase
-      .from('crm_tenants')
-      .select('id, slug, name, status')
-      .order('name')
-      .then(({ data }) => {
-        setTenants(data ?? []);
-        setLoading(false);
-      });
+    (async () => {
+      // Tenants the user owns (or administers), plus tenants they were added
+      // to as a team member. The member lookup is a function that exists once
+      // the team migration is applied; before that its error is ignored.
+      const [owned, memberOf] = await Promise.all([
+        supabase
+          .from('crm_tenants')
+          .select('id, slug, name, status')
+          .order('name'),
+        supabase.rpc('list_member_tenants'),
+      ]);
+      const byId = new Map<string, Tenant>();
+      for (const t of [
+        ...((owned.data as Tenant[] | null) ?? []),
+        ...((memberOf.data as Tenant[] | null) ?? []),
+      ]) {
+        byId.set(t.id, t);
+      }
+      setTenants(
+        [...byId.values()].sort((a, b) => a.name.localeCompare(b.name))
+      );
+      setLoading(false);
+    })();
   }, []);
 
   const setSelectedTenantId = useCallback((id: string | null) => {

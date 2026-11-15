@@ -13,6 +13,9 @@ import {
 import { isCoexistenceField } from '@/lib/whatsapp/coexistence-events';
 import { handleCoexistenceChange } from '@/lib/whatsapp/coexistence-store';
 import { resolveTenantRoute } from '@/lib/whatsapp/number-routing';
+import { applyInboundRules } from '@/lib/whatsapp/inbound-rules';
+import { emitWebhookEvent } from '@/lib/webhooks/deliver';
+import { handleConsentKeyword } from '@/lib/whatsapp/consent';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -771,6 +774,57 @@ async function processMessage(
     console.error('Error updating conversation:', convError);
   }
 
+  // Outbound webhooks: tell the tenant's own systems. Fire and forget, after
+  // the message is saved, so it can never delay or fail the customer's message.
+  if (tenantId) {
+    const webhookContact = {
+      id: contactRecord.id,
+      name: contactRecord.name ?? null,
+      phone: contactRecord.phone,
+    };
+    if (contactOutcome.wasCreated) {
+      emitWebhookEvent(supabaseAdmin(), {
+        tenantId,
+        type: 'contact.created',
+        data: { contact: webhookContact },
+      });
+    }
+    emitWebhookEvent(supabaseAdmin(), {
+      tenantId,
+      type: 'message.received',
+      data: {
+        conversationId: conversation.id,
+        contact: webhookContact,
+        phoneNumberId: receivingNumberId ?? null,
+        message: {
+          id: message.id,
+          type: contentType,
+          text: contentText,
+          media: mediaUrl ? { type: mediaType } : null,
+          interactiveReplyId,
+          receivedAt: new Date(
+            parseInt(message.timestamp) * 1000
+          ).toISOString(),
+        },
+      },
+    });
+  }
+
+  // STOP / START: opt the contact out of (or back into) marketing messages.
+  // Only plain text counts, so a flow button that happens to be titled "Stop"
+  // is not an unsubscribe. A consent keyword is not a question for a bot, so
+  // flows and automations do not see it.
+  const consentResult = await handleConsentKeyword({
+    db: supabaseAdmin(),
+    contactId: contactRecord.id,
+    contactPhone: contactRecord.phone,
+    conversationId: conversation.id,
+    text: message.type === 'text' ? contentText : null,
+    accessToken,
+    phoneNumberId: receivingNumberId ?? null,
+  });
+  if (consentResult.handled) return;
+
   // If this contact was a recent broadcast recipient, flag the reply
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
@@ -814,6 +868,25 @@ async function processMessage(
     isFirstInboundMessage,
   });
   const flowConsumed = flowResult.consumed;
+
+  // Tenant rules: auto-assign a new chat to a team member, and send the away
+  // message outside business hours. Off unless the tenant enabled them, and
+  // the helper never throws, so it cannot hold up the customer's message.
+  if (tenantId) {
+    await applyInboundRules({
+      db: supabaseAdmin(),
+      tenantId,
+      conversation: {
+        id: conversation.id,
+        assigned_agent_id: conversation.assigned_agent_id,
+        away_sent_at: conversation.away_sent_at,
+      },
+      contactPhone: contactRecord.phone,
+      accessToken,
+      phoneNumberId: receivingNumberId ?? null,
+      suppressAway: flowConsumed,
+    });
+  }
 
   // Fire any automations that react to this webhook event. All dispatches
   // run here (not earlier) so the contact, conversation, and inbound

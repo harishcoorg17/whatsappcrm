@@ -6,9 +6,17 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { ParallelBroadcastSender, validateParallelConfig } from '@/lib/whatsapp/parallel-sender';
+import {
+  ParallelBroadcastSender,
+  validateParallelConfig,
+} from '@/lib/whatsapp/parallel-sender';
 import { AudienceSegmentation } from '@/lib/contacts/segmentation';
-import type { ParallelBroadcastConfig, BroadcastRecipientWithParams, AudienceFilterConfig } from '@/types';
+import { filterOptedOutRecipients } from '@/lib/whatsapp/consent';
+import type {
+  ParallelBroadcastConfig,
+  BroadcastRecipientWithParams,
+  AudienceFilterConfig,
+} from '@/types';
 
 interface RequestBody {
   broadcast_id: string;
@@ -23,7 +31,10 @@ interface RequestBody {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -86,7 +97,7 @@ export async function POST(request: Request) {
           user.id,
           savedFilter.filter_config
         );
-        finalRecipients = contacts.map(c => ({
+        finalRecipients = contacts.map((c) => ({
           phone: c.phone,
           params: [],
         }));
@@ -94,8 +105,11 @@ export async function POST(request: Request) {
     } else if (filter_config) {
       // Use direct filter config
       const segmentation = new AudienceSegmentation(supabase);
-      const contacts = await segmentation.getFilteredContacts(user.id, filter_config);
-      finalRecipients = contacts.map(c => ({
+      const contacts = await segmentation.getFilteredContacts(
+        user.id,
+        filter_config
+      );
+      finalRecipients = contacts.map((c) => ({
         phone: c.phone,
         params: [],
       }));
@@ -108,6 +122,20 @@ export async function POST(request: Request) {
       );
     }
 
+    // Never message someone who replied STOP (or was opted out by hand).
+    const { allowed, skipped } = await filterOptedOutRecipients(
+      supabase,
+      user.id,
+      finalRecipients
+    );
+    if (allowed.length === 0) {
+      return NextResponse.json(
+        { error: 'Every recipient has opted out of marketing messages' },
+        { status: 400 }
+      );
+    }
+    finalRecipients = allowed;
+
     // Create sender instance
     const sender = new ParallelBroadcastSender(supabase, parallel_config);
 
@@ -119,7 +147,7 @@ export async function POST(request: Request) {
       template_name,
       template_language || 'en_US',
       user.id
-    ).catch(error => {
+    ).catch((error) => {
       console.error('Async broadcast error:', error);
     });
 
@@ -128,6 +156,7 @@ export async function POST(request: Request) {
       status: 'sending',
       broadcast_id,
       recipients_count: finalRecipients.length,
+      skipped_opted_out: skipped.length,
       message: 'Broadcast started. You will receive updates via polling.',
     });
   } catch (error) {
@@ -170,7 +199,10 @@ async function sendBroadcastAsync(
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -195,7 +227,10 @@ export async function GET(request: Request) {
       .single();
 
     if (!broadcast) {
-      return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Broadcast not found' },
+        { status: 404 }
+      );
     }
 
     // Get recipient stats

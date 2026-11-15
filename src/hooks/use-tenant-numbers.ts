@@ -29,11 +29,16 @@ export function useTenantNumbers(refreshKey = 0) {
     let cancelled = false;
     const supabase = createClient();
     (async () => {
-      const { data, error } = await supabase
-        .from('crm_tenant_numbers')
-        .select('tenant_id, phone_number_id, label, display_phone_number')
-        .eq('status', 'active')
-        .order('created_at', { ascending: true });
+      // Prefer the token-free function (works for team members too); fall
+      // back to reading the table directly before the team migration exists.
+      let { data, error } = await supabase.rpc('list_visible_tenant_numbers');
+      if (error) {
+        ({ data, error } = await supabase
+          .from('crm_tenant_numbers')
+          .select('tenant_id, phone_number_id, label, display_phone_number')
+          .eq('status', 'active')
+          .order('created_at', { ascending: true }));
+      }
       if (cancelled) return;
       if (error) {
         // Table missing (migration 028 not applied) or no access: no badges.

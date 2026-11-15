@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Settings,
   MessageSquare,
+  MessageSquareQuote,
   Tag,
   User,
   Palette,
@@ -16,6 +17,7 @@ import { WhatsAppConfig } from '@/components/settings/whatsapp-config';
 import { EmailConfig } from '@/components/settings/email-config';
 import { TemplateManager } from '@/components/settings/template-manager';
 import { TagManager } from '@/components/settings/tag-manager';
+import { CannedRepliesManager } from '@/components/settings/canned-replies-manager';
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
@@ -26,6 +28,7 @@ const TAB_VALUES = [
   'whatsapp',
   'email',
   'templates',
+  'quick-replies',
   'tags',
   'appearance',
 ] as const;
@@ -97,6 +100,13 @@ export default function SettingsPage() {
             Templates
           </TabsTrigger>
           <TabsTrigger
+            value="quick-replies"
+            className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
+          >
+            <MessageSquareQuote className="size-4" />
+            Quick replies
+          </TabsTrigger>
+          <TabsTrigger
             value="tags"
             className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
           >
@@ -128,6 +138,10 @@ export default function SettingsPage() {
 
         <TabsContent value="templates">
           <TemplateManager />
+        </TabsContent>
+
+        <TabsContent value="quick-replies">
+          <CannedRepliesManager />
         </TabsContent>
 
         <TabsContent value="tags">

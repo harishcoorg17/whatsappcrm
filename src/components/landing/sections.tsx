@@ -37,6 +37,12 @@ export function LandingHeader() {
           <BrandLogo height={28} priority />
         </Link>
         <nav className="flex items-center gap-2">
+          <Link
+            href="/pricing"
+            className="text-muted-foreground hover:text-foreground mr-2 text-sm font-medium"
+          >
+            Pricing
+          </Link>
           <Button render={<Link href="/login" />} variant="outline" size="lg">
             Sign in
           </Button>

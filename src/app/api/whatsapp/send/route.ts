@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import {
   sanitizePhoneForMeta,
   isValidE164,
@@ -71,12 +72,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch conversation and contact
+    // Fetch conversation and contact. Row level security decides who can see
+    // it: the owner, or a member of the conversation's tenant (a team agent).
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
       .select('*, contact:contacts(*)')
       .eq('id', conversation_id)
-      .eq('user_id', user.id)
       .single();
 
     if (convError || !conversation) {
@@ -85,6 +86,11 @@ export async function POST(request: Request) {
         { status: 404 }
       );
     }
+
+    // Everything the workspace owns (templates, credentials, flow runs) is
+    // filed under the owner, which is not the caller when an agent replies.
+    const ownerUserId: string = conversation.user_id;
+    const ownerData = ownerUserId === user.id ? supabase : supabaseAdmin();
 
     const contact = conversation.contact;
     if (!contact?.phone) {
@@ -106,8 +112,8 @@ export async function POST(request: Request) {
     // Resolve the WhatsApp connection: the conversation's tenant first, then
     // the legacy per-user config.
     const credentials = await loadWhatsAppCredentials(
-      supabase,
-      user.id,
+      ownerData,
+      ownerUserId,
       conversation.tenant_id
     );
 
@@ -178,10 +184,10 @@ export async function POST(request: Request) {
     // crashing the send-builder later in the stack.
     let templateRow: MessageTemplate | null = null;
     if (message_type === 'template' && template_name) {
-      const { data } = await supabase
+      const { data } = await ownerData
         .from('message_templates')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', ownerUserId)
         .eq('name', template_name)
         .eq('language', template_language || 'en_US')
         .maybeSingle();
@@ -313,6 +319,29 @@ export async function POST(request: Request) {
       })
       .eq('id', conversation_id);
 
+    // Outbound webhooks: an agent replied. Fire and forget; the message is
+    // already saved and sent, so this can never fail the request.
+    emitWebhookEvent(supabaseAdmin(), {
+      tenantId: conversation.tenant_id,
+      type: 'message.sent',
+      data: {
+        conversationId: conversation_id,
+        contact: {
+          id: contact.id,
+          name: contact.name ?? null,
+          phone: contact.phone,
+        },
+        message: {
+          id: messageRecord.id,
+          whatsappMessageId: waMessageId,
+          type: message_type,
+          text: content_text || null,
+          templateName: template_name || null,
+        },
+        sentBy: user.id,
+      },
+    });
+
     // Pause any active Flow run for this contact — the agent stepping
     // in is the strongest "yield, human is here" signal. See PR #2
     // plan for why we pause (not end): preserves diagnostic state +
@@ -327,7 +356,7 @@ export async function POST(request: Request) {
           ended_at: new Date().toISOString(),
           end_reason: 'agent_replied',
         })
-        .eq('user_id', user.id)
+        .eq('user_id', ownerUserId)
         .eq('contact_id', contact.id)
         .eq('status', 'active');
       if (pauseErr) {

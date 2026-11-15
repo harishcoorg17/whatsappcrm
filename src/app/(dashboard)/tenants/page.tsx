@@ -27,6 +27,9 @@ import { toast, Toaster } from 'sonner';
 import { DataApiDialog } from '@/components/tenants/data-api-dialog';
 import { DeleteTenantDialog } from '@/components/tenants/delete-tenant-dialog';
 import { NumbersDialog } from '@/components/tenants/numbers-dialog';
+import { TeamDialog } from '@/components/tenants/team-dialog';
+import { RoutingDialog } from '@/components/tenants/routing-dialog';
+import { WebhooksDialog } from '@/components/tenants/webhooks-dialog';
 
 interface Tenant {
   id: string;
@@ -73,6 +76,9 @@ export default function TenantsPage() {
   const [apiTenant, setApiTenant] = useState<Tenant | null>(null);
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [numbersTenant, setNumbersTenant] = useState<Tenant | null>(null);
+  const [teamTenant, setTeamTenant] = useState<Tenant | null>(null);
+  const [routingTenant, setRoutingTenant] = useState<Tenant | null>(null);
+  const [webhooksTenant, setWebhooksTenant] = useState<Tenant | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
   // Tenants connected through WhatsApp coexistence, which can import phone data.
@@ -434,6 +440,24 @@ export default function TenantsPage() {
                   >
                     Numbers
                   </button>
+                  <button
+                    onClick={() => setTeamTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    Team
+                  </button>
+                  <button
+                    onClick={() => setRoutingTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    Hours &amp; routing
+                  </button>
+                  <button
+                    onClick={() => setWebhooksTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    Webhooks
+                  </button>
                   <a
                     href={`/onboarding?tenant=${t.slug}`}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
@@ -503,6 +527,18 @@ export default function TenantsPage() {
       <NumbersDialog
         tenant={numbersTenant}
         onClose={() => setNumbersTenant(null)}
+      />
+
+      <TeamDialog tenant={teamTenant} onClose={() => setTeamTenant(null)} />
+
+      <RoutingDialog
+        tenant={routingTenant}
+        onClose={() => setRoutingTenant(null)}
+      />
+
+      <WebhooksDialog
+        tenant={webhooksTenant}
+        onClose={() => setWebhooksTenant(null)}
       />
 
       <DeleteTenantDialog
