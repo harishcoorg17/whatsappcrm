@@ -220,6 +220,7 @@ export async function runAiAgent(
       conversationId: input.conversationId,
       contactId: input.contactId,
       text: decision.text,
+      sentByAi: true,
     });
     return 'replied';
   } catch (error) {

@@ -37,6 +37,8 @@ interface SendTextEngineArgs {
   conversationId: string;
   contactId: string;
   text: string;
+  /** Marks the stored message as written by the AI agent. */
+  sentByAi?: boolean;
 }
 
 /**
@@ -118,14 +120,22 @@ export async function engineSendText(
       .eq('id', contact.id);
   }
 
-  const { error: msgErr } = await db.from('messages').insert({
+  const textRow: Record<string, unknown> = {
     conversation_id: args.conversationId,
     sender_type: 'bot',
     content_type: 'text',
     content_text: args.text,
     message_id: waMessageId,
     status: 'sent',
-  });
+  };
+  let { error: msgErr } = await db
+    .from('messages')
+    .insert(args.sentByAi ? { ...textRow, sent_by_ai: true } : textRow);
+  if (msgErr && args.sentByAi) {
+    // Column missing (migration 037 not applied yet): the customer already
+    // got the message, so store it without the AI marker rather than lose it.
+    ({ error: msgErr } = await db.from('messages').insert(textRow));
+  }
   if (msgErr) {
     throw new Error(`sent to Meta but DB insert failed: ${msgErr.message}`);
   }

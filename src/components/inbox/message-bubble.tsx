@@ -306,6 +306,14 @@ export function MessageBubble({
             isAgent ? 'justify-end' : 'justify-start'
           )}
         >
+          {message.sender_type === 'bot' && message.sent_by_ai && (
+            <span
+              title="Written by the AI agent"
+              className="rounded bg-white/20 px-1 text-[9px] font-semibold tracking-wide text-white uppercase"
+            >
+              AI
+            </span>
+          )}
           <span className="text-[10px] text-white/60">{time}</span>
           {isAgent && <StatusIcon status={message.status} />}
         </div>
