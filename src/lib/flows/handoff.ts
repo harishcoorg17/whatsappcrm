@@ -23,7 +23,8 @@ export type HandoffReason =
   | 'handoff_node'
   | 'fallback_exhausted'
   | 'customer_requested'
-  | 'automation';
+  | 'automation'
+  | 'ai_handoff';
 
 /** Statuses during which the bot must not respond. */
 export function isBotSilenced(status: string | null | undefined): boolean {
@@ -54,7 +55,12 @@ const HUMAN_PHRASES = [
 ];
 
 /** Conventional button/list reply ids that mean "I want a human". */
-export const HUMAN_REPLY_IDS = ['human', 'agent', 'talk_to_agent', 'talk_to_human'];
+export const HUMAN_REPLY_IDS = [
+  'human',
+  'agent',
+  'talk_to_agent',
+  'talk_to_human',
+];
 
 function normalize(text: string): string {
   return text

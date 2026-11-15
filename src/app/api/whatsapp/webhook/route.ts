@@ -16,6 +16,7 @@ import { resolveTenantRoute } from '@/lib/whatsapp/number-routing';
 import { applyInboundRules } from '@/lib/whatsapp/inbound-rules';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import { handleConsentKeyword } from '@/lib/whatsapp/consent';
+import { runAiAgent } from '@/lib/ai/agent';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -869,6 +870,22 @@ async function processMessage(
   });
   const flowConsumed = flowResult.consumed;
 
+  // AI agent: when no bot flow took the message and the tenant switched the
+  // AI on, it answers from the tenant's own information or hands the chat to
+  // a human. Never throws, and does nothing for tenants without it.
+  let aiHandled = false;
+  if (tenantId && !flowConsumed) {
+    const aiOutcome = await runAiAgent({
+      db: supabaseAdmin(),
+      tenantId,
+      userId,
+      conversationId: conversation.id,
+      contactId: contactRecord.id,
+      inboundText: message.type === 'text' ? contentText : null,
+    });
+    aiHandled = aiOutcome !== 'skipped';
+  }
+
   // Tenant rules: auto-assign a new chat to a team member, and send the away
   // message outside business hours. Off unless the tenant enabled them, and
   // the helper never throws, so it cannot hold up the customer's message.
@@ -884,7 +901,7 @@ async function processMessage(
       contactPhone: contactRecord.phone,
       accessToken,
       phoneNumberId: receivingNumberId ?? null,
-      suppressAway: flowConsumed,
+      suppressAway: flowConsumed || aiHandled,
     });
   }
 
@@ -902,7 +919,7 @@ async function processMessage(
   )[] = [];
   // Content-level triggers are suppressed when a flow consumed the
   // message — see the comment block above.
-  if (!flowConsumed) {
+  if (!flowConsumed && !aiHandled) {
     automationTriggers.push('new_message_received', 'keyword_match');
   }
   // new_contact_created fires only when the webhook just auto-created the

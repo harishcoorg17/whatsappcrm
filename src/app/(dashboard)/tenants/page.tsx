@@ -30,6 +30,7 @@ import { NumbersDialog } from '@/components/tenants/numbers-dialog';
 import { TeamDialog } from '@/components/tenants/team-dialog';
 import { RoutingDialog } from '@/components/tenants/routing-dialog';
 import { WebhooksDialog } from '@/components/tenants/webhooks-dialog';
+import { AiDialog } from '@/components/tenants/ai-dialog';
 
 interface Tenant {
   id: string;
@@ -76,8 +77,22 @@ export default function TenantsPage() {
   const [apiTenant, setApiTenant] = useState<Tenant | null>(null);
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
   const [numbersTenant, setNumbersTenant] = useState<Tenant | null>(null);
+  // WhatsApp numbers per tenant, shown on each card so a newly added number is visible.
+  const [numbersByTenant, setNumbersByTenant] = useState<
+    Record<
+      string,
+      Array<{
+        phone_number_id: string;
+        label: string | null;
+        display_phone_number: string | null;
+        is_primary: boolean;
+        status: string;
+      }>
+    >
+  >({});
   const [teamTenant, setTeamTenant] = useState<Tenant | null>(null);
   const [routingTenant, setRoutingTenant] = useState<Tenant | null>(null);
+  const [aiTenant, setAiTenant] = useState<Tenant | null>(null);
   const [webhooksTenant, setWebhooksTenant] = useState<Tenant | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
   const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
@@ -108,6 +123,26 @@ export default function TenantsPage() {
           }) as unknown as Tenant
       )
     );
+
+    // Best effort: without the numbers table the cards just show no numbers.
+    const { data: numberRows } = await supabase
+      .from('crm_tenant_numbers')
+      .select(
+        'tenant_id, phone_number_id, label, display_phone_number, is_primary, status'
+      )
+      .order('created_at', { ascending: true });
+    const grouped: typeof numbersByTenant = {};
+    for (const row of (numberRows ?? []) as Array<{
+      tenant_id: string;
+      phone_number_id: string;
+      label: string | null;
+      display_phone_number: string | null;
+      is_primary: boolean;
+      status: string;
+    }>) {
+      (grouped[row.tenant_id] ??= []).push(row);
+    }
+    setNumbersByTenant(grouped);
 
     // Best effort: without it the phone-sync button just stays hidden.
     const { data: events } = await supabase
@@ -402,6 +437,34 @@ export default function TenantsPage() {
                   <p className="mt-0.5 font-mono text-sm text-slate-400">
                     /{t.slug}
                   </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    {(numbersByTenant[t.id] ?? []).length === 0 ? (
+                      <span className="text-xs text-slate-500">
+                        No WhatsApp numbers connected
+                      </span>
+                    ) : (
+                      (numbersByTenant[t.id] ?? []).map((n) => (
+                        <span
+                          key={n.phone_number_id}
+                          title={`ID ${n.phone_number_id}`}
+                          className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                            n.status === 'active'
+                              ? 'border-slate-700 text-slate-300'
+                              : 'border-amber-700 text-amber-400'
+                          }`}
+                        >
+                          {n.label ??
+                            n.display_phone_number ??
+                            n.phone_number_id}
+                          {n.display_phone_number && n.label
+                            ? ` · ${n.display_phone_number}`
+                            : ''}
+                          {n.is_primary ? ' · primary' : ''}
+                          {n.status !== 'active' ? ' · off' : ''}
+                        </span>
+                      ))
+                    )}
+                  </div>
                   <div className="mt-1 flex items-center gap-4">
                     {t.waba_id ? (
                       <span className="text-xs text-slate-500">
@@ -451,6 +514,12 @@ export default function TenantsPage() {
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
                   >
                     Hours &amp; routing
+                  </button>
+                  <button
+                    onClick={() => setAiTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    AI agent
                   </button>
                   <button
                     onClick={() => setWebhooksTenant(t)}
@@ -526,7 +595,10 @@ export default function TenantsPage() {
 
       <NumbersDialog
         tenant={numbersTenant}
-        onClose={() => setNumbersTenant(null)}
+        onClose={() => {
+          setNumbersTenant(null);
+          void load();
+        }}
       />
 
       <TeamDialog tenant={teamTenant} onClose={() => setTeamTenant(null)} />
@@ -535,6 +607,8 @@ export default function TenantsPage() {
         tenant={routingTenant}
         onClose={() => setRoutingTenant(null)}
       />
+
+      <AiDialog tenant={aiTenant} onClose={() => setAiTenant(null)} />
 
       <WebhooksDialog
         tenant={webhooksTenant}
