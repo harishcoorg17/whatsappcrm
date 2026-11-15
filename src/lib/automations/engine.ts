@@ -13,10 +13,11 @@ import type {
   WaitStepConfig,
   CreateDealStepConfig,
   AssignConversationStepConfig,
+  HandoffToAgentStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
-import { isBotSilenced } from '@/lib/flows/handoff'
+import { isBotSilenced, performHandoff } from '@/lib/flows/handoff'
 
 // ------------------------------------------------------------
 // Public API
@@ -442,6 +443,21 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       })
       if (!res.ok) throw new Error(`webhook returned ${res.status}`)
       return `webhook ${res.status}`
+    }
+
+    case 'handoff_to_agent': {
+      if (!args.contactId) throw new Error('handoff_to_agent needs a contact')
+      const cfg = step.step_config as HandoffToAgentStepConfig
+      const conversationId = await resolveConversationId(args)
+      await performHandoff(db, {
+        userId: args.automation.user_id,
+        conversationId,
+        contactId: args.contactId,
+        reason: 'automation',
+        assignTo: cfg.agent_id || undefined,
+        message: cfg.message,
+      })
+      return 'handed off to agent'
     }
 
     case 'close_conversation': {

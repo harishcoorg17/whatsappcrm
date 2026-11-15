@@ -346,6 +346,7 @@ export type AutomationStepType =
   | 'condition'
   | 'send_webhook'
   | 'close_conversation'
+  | 'handoff_to_agent'
   | 'collect_form';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
@@ -392,6 +393,14 @@ export interface AssignConversationStepConfig {
   agent_id?: string;
 }
 
+/** Hands the chat to a human: bot + auto-replies go silent until an agent returns it. */
+export interface HandoffToAgentStepConfig {
+  /** Sent to the customer; blank = default "Connecting you to a team member". */
+  message?: string;
+  /** Optional agent to assign. */
+  agent_id?: string;
+}
+
 export interface UpdateContactFieldStepConfig {
   field: string;
   value: string;
@@ -434,6 +443,7 @@ export type AutomationStepConfig =
   | SendTemplateStepConfig
   | TagStepConfig
   | AssignConversationStepConfig
+  | HandoffToAgentStepConfig
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
   | WaitStepConfig

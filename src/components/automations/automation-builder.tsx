@@ -87,6 +87,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   wait: { label: "Wait", icon: Hourglass, border: "border-l-slate-500" },
   condition: { label: "Condition (If/Else)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Send Webhook", icon: Webhook, border: "border-l-primary" },
+  handoff_to_agent: { label: "Hand off to Agent", icon: UserCheck, border: "border-l-amber-500" },
   close_conversation: { label: "Close Conversation", icon: CircleSlash, border: "border-l-primary" },
   collect_form: { label: "Collect Form Data", icon: FileText, border: "border-l-emerald-500" },
 }
@@ -102,6 +103,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "wait",
   "condition",
   "send_webhook",
+  "handoff_to_agent",
   "close_conversation",
   "collect_form",
 ]
@@ -150,6 +152,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { subject: "tag_presence", operand: "", value: "" }
     case "send_webhook":
       return { url: "", headers: {}, body_template: "" }
+    case "handoff_to_agent":
+      return { message: "" }
     case "close_conversation":
       return {}
     default:
@@ -776,6 +780,26 @@ function StepEditor({
               />
             </FieldBlock>
           )}
+        </>
+      )
+    case "handoff_to_agent":
+      return (
+        <>
+          <FieldBlock label="Message to customer (blank = default)">
+            <Input
+              value={(cfg.message as string) ?? ""}
+              onChange={(e) => set({ message: e.target.value })}
+              placeholder="Connecting you to a team member…"
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
+          <FieldBlock label="Agent id (optional)">
+            <Input
+              value={(cfg.agent_id as string) ?? ""}
+              onChange={(e) => set({ agent_id: e.target.value })}
+              className="bg-slate-800 text-white"
+            />
+          </FieldBlock>
         </>
       )
     case "update_contact_field":

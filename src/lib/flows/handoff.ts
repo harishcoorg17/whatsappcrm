@@ -22,7 +22,8 @@ export const DEFAULT_OUT_OF_HOURS_MESSAGE =
 export type HandoffReason =
   | 'handoff_node'
   | 'fallback_exhausted'
-  | 'customer_requested';
+  | 'customer_requested'
+  | 'automation';
 
 /** Statuses during which the bot must not respond. */
 export function isBotSilenced(status: string | null | undefined): boolean {

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Check } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
+import { LEGAL_PATHS } from '@/lib/legal/company';
 import { Button } from '@/components/ui/button';
 import { BENEFITS, COMPARISON, EASE_POINTS, HOW_IT_WORKS } from './content';
 
@@ -212,6 +213,23 @@ export function FinalCta() {
 export function LandingFooter() {
   return (
     <footer className="border-border text-muted-foreground border-t py-8 text-center text-sm">
+      <nav
+        aria-label="Legal"
+        className="mb-2 flex items-center justify-center gap-4"
+      >
+        <Link
+          href={LEGAL_PATHS.privacy}
+          className="hover:text-foreground hover:underline"
+        >
+          Privacy Policy
+        </Link>
+        <Link
+          href={LEGAL_PATHS.terms}
+          className="hover:text-foreground hover:underline"
+        >
+          Terms and Conditions
+        </Link>
+      </nav>
       © {new Date().getFullYear()} ConverMesh WhatsApp CRM
     </footer>
   );

@@ -132,6 +132,7 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.url`, message: 'webhook URL is not a valid URL' })
       }
       break
+    case 'handoff_to_agent':
     case 'close_conversation':
       // No config required.
       break

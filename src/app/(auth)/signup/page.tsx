@@ -191,6 +191,23 @@ export default function SignupPage() {
             >
               {loading ? 'Creating account...' : 'Create account'}
             </Button>
+            <p className="text-center text-xs text-slate-500">
+              By creating an account you agree to our{' '}
+              <Link
+                href="/terms"
+                className="text-primary hover:text-primary/80 underline"
+              >
+                Terms and Conditions
+              </Link>{' '}
+              and{' '}
+              <Link
+                href="/privacy"
+                className="text-primary hover:text-primary/80 underline"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </p>
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-400">

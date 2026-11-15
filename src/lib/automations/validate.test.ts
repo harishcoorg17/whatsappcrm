@@ -24,6 +24,7 @@ describe("validateStepsForActivation", () => {
         step_config: { amount: 5, unit: "minutes" },
       },
       { step_type: "add_tag", step_config: { tag_id: "tag-uuid" } },
+      { step_type: "handoff_to_agent", step_config: {} },
       { step_type: "close_conversation", step_config: {} },
     ]);
     expect(issues).toEqual([]);
