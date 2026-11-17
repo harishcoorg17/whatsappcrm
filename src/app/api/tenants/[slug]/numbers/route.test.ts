@@ -164,7 +164,10 @@ beforeEach(() => {
     phone_number_id: '111111111111',
     waba_id: 'waba-1',
     access_token_enc: 'enc(tenant-token)',
-  };
+    // Billing columns: an unlimited paid plan unless a test says otherwise.
+    plan: 'scale',
+    subscription_status: 'active',
+  } as typeof state.tenant;
   state.numberOwners = { '111111111111': 't1' };
   state.tenantPrimaries = { '111111111111': 't1' };
   state.numberCount = 1;
@@ -230,6 +233,16 @@ describe('POST /api/tenants/[slug]/numbers', () => {
   it('enforces the per-tenant number limit', async () => {
     state.numberCount = 20;
     expect((await post({ phoneNumberId: '222222222222' })).status).toBe(400);
+  });
+
+  it('refuses a second number on Starter with a plan_limit error', async () => {
+    Object.assign(state.tenant as object, { plan: 'starter' });
+    const res = await post({ phoneNumberId: '222222222222' });
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { error: string; code: string };
+    expect(body.code).toBe('plan_limit');
+    expect(body.error).toContain('Starter plan includes 1 WhatsApp number');
+    expect(state.inserted).toEqual([]);
   });
 
   it('adds a secondary number that shares the tenant token', async () => {

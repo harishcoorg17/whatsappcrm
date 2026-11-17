@@ -137,3 +137,41 @@ export function clampSlaMinutes(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_SLA_MINUTES;
   return Math.min(1440, Math.max(1, Math.round(value)));
 }
+
+export interface AdSourceStat {
+  sourceId: string;
+  headline: string | null;
+  sourceType: string | null;
+  mediaUrl: string | null;
+  sourceUrl: string | null;
+  chats: number;
+  /** Chats a team member answered. */
+  replies: number;
+  deals: number;
+  wonDeals: number;
+}
+
+/** Turn `analytics_ad_sources` JSON (migration 042) into typed rows, busiest first. */
+export function parseAdSources(raw: unknown): AdSourceStat[] {
+  const str = (v: unknown): string | null =>
+    typeof v === 'string' && v ? v : null;
+  return list(raw)
+    .map((a) => ({
+      sourceId: String(a.sourceId ?? ''),
+      headline: str(a.headline),
+      sourceType: str(a.sourceType),
+      mediaUrl: str(a.mediaUrl),
+      sourceUrl: str(a.sourceUrl),
+      chats: num(a.chats),
+      replies: num(a.replies),
+      deals: num(a.deals),
+      wonDeals: num(a.wonDeals),
+    }))
+    .filter((a) => a.sourceId !== '')
+    .sort((a, b) => b.chats - a.chats);
+}
+
+/** Share of chats that got a team reply / became a deal, 0-100; null with no chats. */
+export function ratePercent(part: number, total: number): number | null {
+  return total > 0 ? Math.round((100 * part) / total) : null;
+}

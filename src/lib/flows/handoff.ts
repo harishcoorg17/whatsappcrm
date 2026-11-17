@@ -9,6 +9,7 @@
  * transferring the chat.
  */
 
+import { dispatchHandoffAlert } from '@/lib/handoff-alert/dispatch';
 import { engineSendText } from './meta-send';
 import type { supabaseAdmin } from './admin-client';
 
@@ -168,6 +169,22 @@ export async function performHandoff(
     .eq('id', args.conversationId);
   if (error) {
     console.error('[handoff] conversation update failed:', error.message);
+  }
+
+  // Alert the team (email / WhatsApp, if the tenant turned it on). Isolated so
+  // a failure here can never break the handoff itself.
+  if (!error) {
+    try {
+      await dispatchHandoffAlert(db, {
+        conversationId: args.conversationId,
+        reason: args.reason,
+      });
+    } catch (err) {
+      console.error(
+        '[handoff] agent alert failed:',
+        err instanceof Error ? err.message : err
+      );
+    }
   }
 
   const text = pickHandoffMessage(args);

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
-import type { Contact, Deal, ContactNote, Tag } from '@/types';
+import type { Contact, Conversation, Deal, ContactNote, Tag } from '@/types';
 import {
   Phone,
   Mail,
@@ -19,12 +19,14 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { ConsentControl } from './consent-control';
+import { AdSourceCard } from './ad-source';
 
 interface ContactSidebarProps {
   contact: Contact | null;
+  conversation?: Conversation | null;
 }
 
-export function ContactSidebar({ contact }: ContactSidebarProps) {
+export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
   const [copied, setCopied] = useState(false);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
@@ -173,6 +175,8 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
           {/* Divider */}
           <div className="my-4 border-t border-slate-800" />
+
+          <AdSourceCard conversation={conversation} />
 
           {/* Marketing consent */}
           <ConsentControl

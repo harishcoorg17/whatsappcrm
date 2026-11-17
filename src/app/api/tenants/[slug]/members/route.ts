@@ -5,6 +5,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { authorizeTenantAccess, problem } from '@/lib/tenants/authorize-tenant';
+import { canAddAgent } from '@/lib/billing/plans';
+import { loadTenantLimits } from '@/lib/billing/server';
 
 /**
  * A tenant's team.
@@ -134,6 +136,20 @@ export async function POST(request: NextRequest, context: Context) {
         `A team can have at most ${MAX_MEMBERS_PER_TENANT} members`,
         400
       ).response;
+    }
+
+    // Plan seat limit: the owner holds a seat too. Re-adding an existing
+    // member (a role change through upsert) does not take a new one.
+    const limits = await loadTenantLimits(auth.db, auth.tenant.id);
+    if (limits) {
+      const seats = (count ?? 0) + (auth.tenant.owner_user_id ? 1 : 0);
+      const check = canAddAgent(limits, seats);
+      if (!check.allowed) {
+        return NextResponse.json(
+          { error: check.message, code: 'plan_limit', limit: check.limit },
+          { status: 402 }
+        );
+      }
     }
 
     // Existing account? Otherwise send an invite email and use the new user.

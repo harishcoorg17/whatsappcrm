@@ -5,8 +5,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   BarChart3,
+  Megaphone,
   Clock,
   Loader2,
+  Star,
   MessageSquare,
   Timer,
   Users,
@@ -15,6 +17,8 @@ import { createClient } from '@/lib/supabase/client';
 import { useTenant } from '@/hooks/use-tenant';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/empty-state';
+import { adLabel } from '@/lib/whatsapp/referral';
+import { parseCsatSummary, type CsatSummary } from '@/lib/csat/csat';
 import {
   DEFAULT_SLA_MINUTES,
   PERIOD_OPTIONS,
@@ -23,7 +27,10 @@ import {
   formatDayLabel,
   formatMinutes,
   formatPercent,
+  parseAdSources,
   parseOverview,
+  ratePercent,
+  type AdSourceStat,
   type AnalyticsOverview,
 } from '@/lib/analytics';
 
@@ -76,7 +83,9 @@ export default function AnalyticsPage() {
   const [days, setDays] = useState<number>(7);
   const [slaMinutes, setSlaMinutes] = useState<number>(DEFAULT_SLA_MINUTES);
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
+  const [adSources, setAdSources] = useState<AdSourceStat[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [csat, setCsat] = useState<CsatSummary | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
@@ -94,6 +103,21 @@ export default function AnalyticsPage() {
     }
     const parsed = parseOverview(data);
     setOverview(parsed);
+
+    // CSAT is optional (migration 044): a failure just hides the card.
+    const { data: csatData, error: csatError } = await supabase.rpc(
+      'csat_summary',
+      { p_tenant_id: tenantId, p_days: days }
+    );
+    setCsat(csatError ? null : parseCsatSummary(csatData));
+
+    // Ad sources come from migration 042; before it is applied the section
+    // simply stays empty rather than failing the whole page.
+    const { data: adData, error: adError } = await supabase.rpc(
+      'analytics_ad_sources',
+      { p_tenant_id: tenantId, p_days: days }
+    );
+    setAdSources(adError ? [] : parseAdSources(adData));
 
     const agentIds = (parsed?.agents ?? [])
       .map((a) => a.agentId)
@@ -213,6 +237,30 @@ export default function AnalyticsPage() {
                   hint="Open chats whose last message is the customer's"
                 />
               </div>
+
+              {csat && (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <StatCard
+                    icon={Star}
+                    label="Customer satisfaction"
+                    value={
+                      csat.average === null
+                        ? '—'
+                        : `${csat.average.toFixed(2)} / 5`
+                    }
+                    tone={
+                      csat.average === null
+                        ? 'default'
+                        : csat.average >= 4
+                          ? 'good'
+                          : csat.average < 3
+                            ? 'bad'
+                            : 'default'
+                    }
+                    hint={`${csat.responses} ${csat.responses === 1 ? 'rating' : 'ratings'} after closed chats`}
+                  />
+                </div>
+              )}
 
               <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
                 <div className="mb-4 flex items-center justify-between">
@@ -340,6 +388,68 @@ export default function AnalyticsPage() {
                   )}
                 </section>
               </div>
+
+              <section className="rounded-xl border border-slate-800 bg-slate-900 p-4">
+                <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold text-white">
+                  <Megaphone className="h-4 w-4 text-amber-400" />
+                  Ad sources
+                </h2>
+                <p className="mb-3 text-xs text-slate-500">
+                  Chats that started from a Click-to-WhatsApp ad in this period.
+                </p>
+                {adSources.length === 0 ? (
+                  <p className="py-4 text-sm text-slate-400">
+                    No chats from ads yet. They appear here once someone taps a
+                    Click-to-WhatsApp ad and messages you.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-slate-500">
+                          <th className="pb-2 font-medium">Ad</th>
+                          <th className="pb-2 text-right font-medium">Chats</th>
+                          <th className="pb-2 text-right font-medium">
+                            Replies
+                          </th>
+                          <th className="pb-2 text-right font-medium">Deals</th>
+                          <th className="pb-2 text-right font-medium">Won</th>
+                          <th className="pb-2 text-right font-medium">
+                            Chat → deal
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {adSources.map((ad) => (
+                          <tr key={ad.sourceId}>
+                            <td className="max-w-64 py-2 text-slate-200">
+                              <p className="truncate">{adLabel(ad)}</p>
+                              <p className="text-[10px] text-slate-500">
+                                ID {ad.sourceId}
+                              </p>
+                            </td>
+                            <td className="py-2 text-right text-slate-300">
+                              {ad.chats}
+                            </td>
+                            <td className="py-2 text-right text-slate-300">
+                              {ad.replies}
+                            </td>
+                            <td className="py-2 text-right text-slate-300">
+                              {ad.deals}
+                            </td>
+                            <td className="py-2 text-right text-slate-300">
+                              {ad.wonDeals}
+                            </td>
+                            <td className="py-2 text-right text-slate-300">
+                              {formatPercent(ratePercent(ad.deals, ad.chats))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
 
               <p className="text-xs text-slate-500">
                 First response is the time from a customer&apos;s first message

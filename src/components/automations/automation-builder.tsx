@@ -42,6 +42,7 @@ import type {
   KeywordMatchTriggerConfig,
 } from "@/types"
 import { cn } from "@/lib/utils"
+import { STORE_VARIABLES } from "@/lib/stores/events"
 
 // ------------------------------------------------------------
 // Types (builder-local — mirror the flattened rows we POST)
@@ -120,7 +121,28 @@ const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: stri
   { value: "conversation_assigned", label: "Conversation Assigned", hint: "When assigned to an agent" },
   { value: "tag_added", label: "Tag Added", hint: "When a tag is added to a contact" },
   { value: "time_based", label: "Time-Based", hint: "On a recurring schedule" },
+  { value: "order_placed", label: "Order Placed (store)", hint: "A Shopify / WooCommerce order is placed" },
+  { value: "order_fulfilled", label: "Order Fulfilled (store)", hint: "A store order is shipped / completed" },
+  { value: "cart_abandoned", label: "Cart Abandoned (store)", hint: "A Shopify checkout is not completed within the store's wait time" },
 ]
+
+const STORE_TRIGGERS: AutomationTriggerType[] = ["order_placed", "order_fulfilled", "cart_abandoned"]
+
+function templateVarsToText(v: unknown): string {
+  if (!v || typeof v !== "object") return ""
+  return Object.keys(v as Record<string, string>)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((k) => (v as Record<string, string>)[k])
+    .join("\n")
+}
+
+function textToTemplateVars(text: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  text.split("\n").forEach((line, i) => {
+    out[String(i + 1)] = line
+  })
+  return out
+}
 
 function cid(): string {
   return (
@@ -389,6 +411,13 @@ function TriggerCard({
                 }
                 className="bg-slate-800 text-white"
               />
+            )}
+            {STORE_TRIGGERS.includes(type) && (
+              <p className="rounded-md border border-slate-700 bg-slate-800/60 px-2 py-1.5 text-[11px] text-slate-400">
+                Connect a store in Settings → Store integrations. Use order details in
+                messages and template variables, e.g.{" "}
+                {STORE_VARIABLES.map((v) => `{{vars.${v}}}`).join(", ")}.
+              </p>
             )}
             {type === "time_based" && (
               <Input
@@ -745,6 +774,14 @@ function StepEditor({
               className="bg-slate-800 text-white"
             />
           </FieldBlock>
+          <FieldBlock label="Template variables (one per line → {{1}}, {{2}}, …)">
+            <Textarea
+              value={templateVarsToText(cfg.variables)}
+              onChange={(e) => set({ variables: textToTemplateVars(e.target.value) })}
+              placeholder={"{{vars.customer_name}}\n{{vars.order_number}}"}
+              className="min-h-20 bg-slate-800 font-mono text-xs text-white"
+            />
+          </FieldBlock>
         </>
       )
     case "add_tag":
@@ -896,6 +933,7 @@ function StepEditor({
               <option value="tag_presence">Tag presence</option>
               <option value="contact_field">Contact field</option>
               <option value="message_content">Message content</option>
+              <option value="ad_source">Ad source (Click-to-WhatsApp)</option>
               <option value="time_of_day">Time of day</option>
             </select>
           </FieldBlock>
@@ -908,6 +946,8 @@ function StepEditor({
                   ? "name / email / company"
                   : cfg.subject === "tag_presence"
                   ? "tag id"
+                  : cfg.subject === "ad_source"
+                  ? "ad id or headline text (blank = any ad)"
                   : ""
               }
               value={(cfg.operand as string) ?? ""}

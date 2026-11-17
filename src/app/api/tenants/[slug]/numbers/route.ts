@@ -5,6 +5,8 @@ import {
   RATE_LIMITS,
 } from '@/lib/rate-limit';
 import { authorizeTenantAccess, problem } from '@/lib/tenants/authorize-tenant';
+import { canAddNumber } from '@/lib/billing/plans';
+import { loadTenantLimits } from '@/lib/billing/server';
 import { decrypt, encrypt } from '@/lib/whatsapp/encryption';
 import { verifyPhoneNumber } from '@/lib/whatsapp/meta-api';
 
@@ -170,6 +172,17 @@ export async function POST(request: NextRequest, context: Context) {
         `A tenant can have at most ${MAX_NUMBERS_PER_TENANT} numbers`,
         400
       ).response;
+    }
+
+    const limits = await loadTenantLimits(auth.db, auth.tenant.id);
+    if (limits) {
+      const check = canAddNumber(limits, count ?? 0);
+      if (!check.allowed) {
+        return NextResponse.json(
+          { error: check.message, code: 'plan_limit', limit: check.limit },
+          { status: 402 }
+        );
+      }
     }
 
     const ownTokenEnc = ownToken ? encrypt(ownToken) : null;

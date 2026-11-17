@@ -29,8 +29,10 @@ import { DeleteTenantDialog } from '@/components/tenants/delete-tenant-dialog';
 import { NumbersDialog } from '@/components/tenants/numbers-dialog';
 import { TeamDialog } from '@/components/tenants/team-dialog';
 import { RoutingDialog } from '@/components/tenants/routing-dialog';
+import { EngagementDialog } from '@/components/tenants/engagement-dialog';
 import { WebhooksDialog } from '@/components/tenants/webhooks-dialog';
 import { AiDialog } from '@/components/tenants/ai-dialog';
+import { BillingDialog } from '@/components/tenants/billing-dialog';
 
 interface Tenant {
   id: string;
@@ -91,7 +93,9 @@ export default function TenantsPage() {
     >
   >({});
   const [teamTenant, setTeamTenant] = useState<Tenant | null>(null);
+  const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
   const [routingTenant, setRoutingTenant] = useState<Tenant | null>(null);
+  const [engagementTenant, setEngagementTenant] = useState<Tenant | null>(null);
   const [aiTenant, setAiTenant] = useState<Tenant | null>(null);
   const [webhooksTenant, setWebhooksTenant] = useState<Tenant | null>(null);
   const [savingCreds, setSavingCreds] = useState(false);
@@ -506,6 +510,12 @@ export default function TenantsPage() {
                     Numbers
                   </button>
                   <button
+                    onClick={() => setBillingTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    Billing
+                  </button>
+                  <button
                     onClick={() => setTeamTenant(t)}
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
                   >
@@ -516,6 +526,12 @@ export default function TenantsPage() {
                     className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
                   >
                     Hours &amp; routing
+                  </button>
+                  <button
+                    onClick={() => setEngagementTenant(t)}
+                    className="flex items-center gap-1.5 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:text-white"
+                  >
+                    Feedback &amp; alerts
                   </button>
                   <button
                     onClick={() => setAiTenant(t)}
@@ -604,10 +620,18 @@ export default function TenantsPage() {
       />
 
       <TeamDialog tenant={teamTenant} onClose={() => setTeamTenant(null)} />
+      <BillingDialog
+        tenant={billingTenant}
+        onClose={() => setBillingTenant(null)}
+      />
 
       <RoutingDialog
         tenant={routingTenant}
         onClose={() => setRoutingTenant(null)}
+      />
+      <EngagementDialog
+        tenant={engagementTenant}
+        onClose={() => setEngagementTenant(null)}
       />
 
       <AiDialog tenant={aiTenant} onClose={() => setAiTenant(null)} />

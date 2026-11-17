@@ -10,6 +10,7 @@ import {
   User,
   Palette,
   Mail,
+  Plug,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
@@ -21,6 +22,7 @@ import { CannedRepliesManager } from '@/components/settings/canned-replies-manag
 import { ProfileForm } from '@/components/settings/profile-form';
 import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
+import { StoreIntegrations } from '@/components/settings/store-integrations';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
 
 const TAB_VALUES = [
@@ -30,6 +32,7 @@ const TAB_VALUES = [
   'templates',
   'quick-replies',
   'tags',
+  'stores',
   'appearance',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
@@ -114,6 +117,13 @@ export default function SettingsPage() {
             Tags
           </TabsTrigger>
           <TabsTrigger
+            value="stores"
+            className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
+          >
+            <Plug className="size-4" />
+            Store integrations
+          </TabsTrigger>
+          <TabsTrigger
             value="appearance"
             className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
           >
@@ -146,6 +156,10 @@ export default function SettingsPage() {
 
         <TabsContent value="tags">
           <TagManager />
+        </TabsContent>
+
+        <TabsContent value="stores">
+          <StoreIntegrations />
         </TabsContent>
 
         <TabsContent value="appearance">

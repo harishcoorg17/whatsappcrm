@@ -1,5 +1,6 @@
 'use client';
 
+import { AdSourceBadge } from './ad-source';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
@@ -496,6 +497,18 @@ export function MessageThread({
         .eq('id', conversation.id);
 
       onStatusChange(conversation.id, status);
+
+      // The server decides whether this tenant sends a CSAT survey.
+      if (status === 'closed') {
+        void fetch(`/api/conversations/${conversation.id}/csat`, {
+          method: 'POST',
+        })
+          .then((res) => res.json())
+          .then((body: { sent?: boolean }) => {
+            if (body.sent) toast.success('Rating survey sent to the customer');
+          })
+          .catch(() => undefined);
+      }
     },
     [conversation, onStatusChange]
   );
@@ -789,6 +802,7 @@ export function MessageThread({
             <Clock className="h-3 w-3" />
             {sessionInfo.remaining}
           </Badge>
+          <AdSourceBadge conversation={conversation} />
         </div>
 
         <div className="flex items-center gap-2">

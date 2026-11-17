@@ -4,7 +4,9 @@ import {
   clampSlaMinutes,
   formatMinutes,
   formatPercent,
+  parseAdSources,
   parseOverview,
+  ratePercent,
 } from './analytics';
 
 // The shape analytics_overview returns (verified against Postgres 16).
@@ -98,5 +100,28 @@ describe('formatPercent / chartMax / clampSlaMinutes', () => {
     expect(clampSlaMinutes(99999)).toBe(1440);
     expect(clampSlaMinutes(12.6)).toBe(13);
     expect(clampSlaMinutes(Number.NaN)).toBe(15);
+  });
+});
+
+describe('parseAdSources', () => {
+  it('parses, drops rows without an id and sorts by chats', () => {
+    const rows = parseAdSources([
+      { sourceId: 'b', chats: 1, replies: 1, deals: 0, wonDeals: 0 },
+      { sourceId: '', chats: 99 },
+      { sourceId: 'a', headline: 'Goa', chats: '5', replies: 3, deals: 2, wonDeals: 1 },
+    ]);
+    expect(rows.map((r) => r.sourceId)).toEqual(['a', 'b']);
+    expect(rows[0]).toMatchObject({ headline: 'Goa', chats: 5, wonDeals: 1 });
+  });
+  it('returns [] for junk', () => {
+    expect(parseAdSources(null)).toEqual([]);
+    expect(parseAdSources({})).toEqual([]);
+  });
+});
+
+describe('ratePercent', () => {
+  it('is null with no chats and rounds otherwise', () => {
+    expect(ratePercent(0, 0)).toBeNull();
+    expect(ratePercent(1, 3)).toBe(33);
   });
 });

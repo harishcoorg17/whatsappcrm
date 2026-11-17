@@ -1,3 +1,4 @@
+import { recordCsatReply } from '@/lib/csat/csat-server';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption';
@@ -17,6 +18,7 @@ import { applyInboundRules } from '@/lib/whatsapp/inbound-rules';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import { handleConsentKeyword } from '@/lib/whatsapp/consent';
 import { runAiAgent } from '@/lib/ai/agent';
+import { persistAdReferral } from '@/lib/whatsapp/referral-store';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,6 +69,8 @@ interface WhatsAppMessage {
   };
   /** Present when the customer swipe-replies to one of our messages. */
   context?: { id: string };
+  /** Click-to-WhatsApp ad referral, on the first message after an ad click. */
+  referral?: Record<string, unknown>;
 }
 
 interface WhatsAppWebhookEntry {
@@ -668,6 +672,16 @@ async function processMessage(
   );
   if (!conversation) return;
 
+  // Click-to-WhatsApp ad attribution (never throws; first touch wins).
+  if (message.referral)
+    await persistAdReferral({
+      db: supabaseAdmin(),
+      userId,
+      contactId: contactRecord.id,
+      conversationId: conversation.id,
+      rawReferral: message.referral,
+    });
+
   // Reactions short-circuit here — they aren't messages. We never insert
   // into `messages`, never bump unread_count, never update last_message_text.
   // Done before parseMessageContent so the media-URL fetch is skipped.
@@ -825,6 +839,10 @@ async function processMessage(
     phoneNumberId: receivingNumberId ?? null,
   });
   if (consentResult.handled) return;
+
+  // A CSAT rating (csat_1..csat_5) is an answer to our survey, not a message
+  // for flows or automations.
+  if (await recordCsatReply(supabaseAdmin(), { conversationId: conversation.id, replyId: interactiveReplyId })) return;
 
   // If this contact was a recent broadcast recipient, flag the reply
   // so the broadcast's `replied_count` advances (via the aggregate

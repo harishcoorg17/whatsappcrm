@@ -17,6 +17,7 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { adMatches, referralFromRow } from '@/lib/whatsapp/referral'
 import { isBotSilenced, performHandoff } from '@/lib/flows/handoff'
 
 // ------------------------------------------------------------
@@ -346,7 +347,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
               if (bNum) return 1
               return a.localeCompare(b)
             })
-            .map((k) => String(cfg.variables![k]))
+            .map((k) => interpolate(String(cfg.variables![k]), args))
         : []
       const { whatsapp_message_id } = await engineSendTemplate({
         userId: args.automation.user_id,
@@ -539,6 +540,20 @@ async function evaluateCondition(cfg: ConditionStepConfig, args: ExecuteArgs): P
     case 'message_content': {
       const text = (args.context.message_text ?? '').toString()
       return text.toLowerCase().includes((cfg.value ?? '').toLowerCase())
+    }
+    case 'ad_source': {
+      // Operand: ad id or text from its headline/body; blank = any ad chat.
+      const convId = args.context.conversation_id
+      if (!convId) return false
+      const { data } = await db
+        .from('conversations')
+        .select('ad_source_id, ad_headline, ad_body')
+        .eq('id', convId)
+        .maybeSingle()
+      return adMatches(
+        referralFromRow(data as Record<string, unknown> | null),
+        cfg.operand
+      )
     }
     case 'time_of_day': {
       // operand form "HH:mm-HH:mm" — true if now is within that window

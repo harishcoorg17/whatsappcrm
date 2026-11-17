@@ -13,6 +13,8 @@ interface FakeState {
     phone_number_id: string | null;
     waba_id: string | null;
     access_token_enc: string | null;
+    plan: string;
+    subscription_status: string;
   };
   members: Array<{ user_id: string; role: string; created_at: string }>;
   profiles: Array<{ user_id: string; full_name: string | null; email: string }>;
@@ -31,6 +33,8 @@ const state: FakeState = {
     phone_number_id: null,
     waba_id: null,
     access_token_enc: null,
+    plan: 'scale',
+    subscription_status: 'active',
   },
   members: [],
   profiles: [],
@@ -155,7 +159,12 @@ beforeEach(() => {
   state.userId = 'owner1';
   state.isPlatformAdmin = false;
   state.callerRole = null;
-  state.tenant = { ...state.tenant, owner_user_id: 'owner1' };
+  state.tenant = {
+    ...state.tenant,
+    owner_user_id: 'owner1',
+    plan: 'scale',
+    subscription_status: 'active',
+  };
   state.members = [];
   state.profiles = [
     { user_id: 'owner1', full_name: 'Owner One', email: 'owner@amstago.com' },
@@ -274,6 +283,39 @@ describe('POST /api/tenants/[slug]/members', () => {
     const res = await post({ email: 'asha@amstago.com', role: 'admin' });
     expect(res.status).toBe(201);
     expect(state.upserts[0]).toMatchObject({ role: 'admin' });
+  });
+
+  it('counts the owner as a seat and refuses the fourth agent on Starter', async () => {
+    state.tenant = {
+      ...state.tenant,
+      plan: 'starter',
+      subscription_status: 'active',
+    };
+    // Owner + 2 members = 3 seats, the Starter limit.
+    state.members = ['a', 'b'].map((id) => ({
+      user_id: id,
+      role: 'agent',
+      created_at: '2026-01-01',
+    }));
+    const res = await post({ email: 'asha@amstago.com' });
+    expect(res.status).toBe(402);
+    const body = (await res.json()) as { error: string; code: string };
+    expect(body.code).toBe('plan_limit');
+    expect(body.error).toContain('Starter plan includes 3 agents');
+    expect(state.upserts).toEqual([]);
+    expect(state.invited).toEqual([]);
+  });
+
+  it('allows a seat while one is free on Starter', async () => {
+    state.tenant = {
+      ...state.tenant,
+      plan: 'starter',
+      subscription_status: 'active',
+    };
+    state.members = [
+      { user_id: 'a', role: 'agent', created_at: '2026-01-01' },
+    ];
+    expect((await post({ email: 'asha@amstago.com' })).status).toBe(201);
   });
 
   it('enforces the team size limit', async () => {

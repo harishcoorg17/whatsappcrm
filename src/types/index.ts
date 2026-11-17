@@ -85,6 +85,15 @@ export interface Conversation {
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;
+  /** Click-to-WhatsApp ad attribution (migration 042). */
+  ad_source_id?: string | null;
+  ad_source_type?: string | null;
+  ad_source_url?: string | null;
+  ad_headline?: string | null;
+  ad_body?: string | null;
+  ad_ctwa_clid?: string | null;
+  ad_media_url?: string | null;
+  ad_referred_at?: string | null;
   created_at: string;
   updated_at: string;
   contact?: Contact;
@@ -336,7 +345,10 @@ export type AutomationTriggerType =
   | 'new_contact_created'
   | 'conversation_assigned'
   | 'tag_added'
-  | 'time_based';
+  | 'time_based'
+  | 'order_placed'
+  | 'order_fulfilled'
+  | 'cart_abandoned';
 
 export type AutomationStepType =
   | 'send_message'
@@ -426,6 +438,7 @@ export type ConditionSubject =
   | 'contact_field'
   | 'tag_presence'
   | 'message_content'
+  | 'ad_source'
   | 'time_of_day';
 
 export interface ConditionStepConfig {

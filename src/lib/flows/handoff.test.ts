@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const sendText = vi.hoisted(() => vi.fn());
 vi.mock('./meta-send', () => ({ engineSendText: sendText }));
+const alertTeam = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/handoff-alert/dispatch', () => ({ dispatchHandoffAlert: alertTeam }));
 
 import {
   DEFAULT_HANDOFF_MESSAGE,
@@ -113,7 +115,41 @@ function fakeDb() {
 }
 
 describe('performHandoff', () => {
-  beforeEach(() => sendText.mockReset());
+  beforeEach(() => {
+    sendText.mockReset();
+    alertTeam.mockReset();
+  });
+
+  it('alerts the team after flipping the status', async () => {
+    const { db } = fakeDb();
+    await performHandoff(db, {
+      userId: 'u',
+      conversationId: 'c',
+      contactId: 'k',
+      reason: 'customer_requested',
+    });
+    expect(alertTeam).toHaveBeenCalledWith(db, {
+      conversationId: 'c',
+      reason: 'customer_requested',
+    });
+  });
+
+  it('never fails the handoff when the alert throws', async () => {
+    alertTeam.mockImplementation(() => {
+      throw new Error('smtp down');
+    });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { db, updates } = fakeDb();
+    const res = await performHandoff(db, {
+      userId: 'u',
+      conversationId: 'c',
+      contactId: 'k',
+      reason: 'automation',
+    });
+    spy.mockRestore();
+    expect(updates[0]).toMatchObject({ status: 'pending' });
+    expect(res.ackSent).toBe(true);
+  });
 
   it('marks the conversation pending, assigns the agent and acknowledges', async () => {
     const { db, updates } = fakeDb();

@@ -603,7 +603,10 @@ export default function InboxPage() {
 
         {/* Right panel: Contact sidebar — desktop only. */}
         <div className="hidden shrink-0 lg:block">
-          <ContactSidebar contact={activeContact} />
+          <ContactSidebar
+            contact={activeContact}
+            conversation={activeConversation}
+          />
         </div>
       </div>
     </div>

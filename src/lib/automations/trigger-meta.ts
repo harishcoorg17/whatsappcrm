@@ -35,6 +35,18 @@ export const TRIGGER_META: Record<AutomationTriggerType, TriggerMeta> = {
     label: 'Time-Based',
     pillClass: 'border-slate-500/30 bg-slate-500/10 text-slate-300',
   },
+  order_placed: {
+    label: 'Order Placed',
+    pillClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+  },
+  order_fulfilled: {
+    label: 'Order Fulfilled',
+    pillClass: 'border-sky-500/30 bg-sky-500/10 text-sky-300',
+  },
+  cart_abandoned: {
+    label: 'Cart Abandoned',
+    pillClass: 'border-orange-500/30 bg-orange-500/10 text-orange-300',
+  },
 }
 
 export function triggerMeta(t: AutomationTriggerType | string): TriggerMeta {
