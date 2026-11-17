@@ -27,6 +27,7 @@ export async function GET() {
     name: t.name,
     description: t.description,
     icon: t.icon,
+    industry: t.industry,
     trigger_type: t.trigger_type,
     node_count: t.nodes.length,
   }))

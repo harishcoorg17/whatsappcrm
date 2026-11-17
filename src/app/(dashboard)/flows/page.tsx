@@ -16,6 +16,12 @@ import {
   HelpCircle,
   UserPlus,
   FileText,
+  Plane,
+  Stethoscope,
+  ShoppingBag,
+  Home,
+  GraduationCap,
+  Utensils,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -74,7 +80,8 @@ interface TemplateSummary {
   slug: string;
   name: string;
   description: string;
-  icon: 'MessageSquare' | 'HelpCircle' | 'UserPlus';
+  icon: keyof typeof TEMPLATE_ICONS;
+  industry: string;
   trigger_type: string;
   node_count: number;
 }
@@ -83,7 +90,23 @@ const TEMPLATE_ICONS = {
   MessageSquare,
   HelpCircle,
   UserPlus,
+  Plane,
+  Stethoscope,
+  ShoppingBag,
+  Home,
+  GraduationCap,
+  Utensils,
 } as const;
+
+const INDUSTRY_LABELS: Record<string, string> = {
+  general: 'General',
+  travel: 'Travel',
+  healthcare: 'Clinic',
+  retail: 'Retail',
+  real_estate: 'Real estate',
+  education: 'Education',
+  restaurant: 'Restaurant',
+};
 
 export default function FlowsPage() {
   const router = useRouter();
@@ -93,6 +116,7 @@ export default function FlowsPage() {
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
   const [templates, setTemplates] = useState<TemplateSummary[]>([]);
+  const [industryFilter, setIndustryFilter] = useState<string>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -258,30 +282,65 @@ export default function FlowsPage() {
               <p className="text-xs tracking-wide text-slate-500 uppercase">
                 Start from a template
               </p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {templates.map((t) => {
-                  const Icon = TEMPLATE_ICONS[t.icon] ?? FileText;
-                  return (
-                    <button
-                      key={t.slug}
-                      type="button"
-                      onClick={() => handleUseTemplate(t.slug)}
-                      disabled={creating}
-                      className="hover:border-primary/40 flex flex-col gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-4 text-left transition-colors hover:bg-slate-800 disabled:opacity-50"
-                    >
-                      <Icon className="text-primary h-5 w-5" />
-                      <span className="text-sm font-semibold text-white">
-                        {t.name}
-                      </span>
-                      <span className="text-xs leading-relaxed text-slate-400">
-                        {t.description}
-                      </span>
-                      <span className="mt-auto border-t border-slate-800 pt-2 text-[11px] text-slate-500">
-                        {t.node_count} {t.node_count === 1 ? 'node' : 'nodes'}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div
+                className="flex flex-wrap gap-2"
+                role="group"
+                aria-label="Filter templates by industry"
+              >
+                {[
+                  'all',
+                  ...Array.from(new Set(templates.map((t) => t.industry))),
+                ].map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={industryFilter === key}
+                    onClick={() => setIndustryFilter(key)}
+                    className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                      industryFilter === key
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-slate-700 text-slate-400 hover:bg-slate-800'
+                    }`}
+                  >
+                    {key === 'all' ? 'All' : (INDUSTRY_LABELS[key] ?? key)}
+                  </button>
+                ))}
+              </div>
+              <div className="grid max-h-[50vh] grid-cols-1 gap-3 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+                {templates
+                  .filter(
+                    (t) =>
+                      industryFilter === 'all' || t.industry === industryFilter
+                  )
+                  .map((t) => {
+                    const Icon = TEMPLATE_ICONS[t.icon] ?? FileText;
+                    return (
+                      <button
+                        key={t.slug}
+                        type="button"
+                        onClick={() => handleUseTemplate(t.slug)}
+                        disabled={creating}
+                        className="hover:border-primary/40 flex flex-col gap-2.5 rounded-lg border border-slate-800 bg-slate-950 p-4 text-left transition-colors hover:bg-slate-800 disabled:opacity-50"
+                      >
+                        <Icon className="text-primary h-5 w-5" />
+                        <span className="text-sm font-semibold text-white">
+                          {t.name}
+                        </span>
+                        <span className="text-xs leading-relaxed text-slate-400">
+                          {t.description}
+                        </span>
+                        <span className="mt-auto flex justify-between border-t border-slate-800 pt-2 text-[11px] text-slate-500">
+                          <span>
+                            {INDUSTRY_LABELS[t.industry] ?? t.industry}
+                          </span>
+                          <span>
+                            {t.node_count}{' '}
+                            {t.node_count === 1 ? 'node' : 'nodes'}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
           )}

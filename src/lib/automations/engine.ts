@@ -18,6 +18,7 @@ import type {
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
 import { adMatches, referralFromRow } from '@/lib/whatsapp/referral'
+import { resolveRoundRobinAgent } from './round-robin'
 import { isBotSilenced, performHandoff } from '@/lib/flows/handoff'
 
 // ------------------------------------------------------------
@@ -388,12 +389,16 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       if (!args.contactId) throw new Error('assign_conversation needs a contact')
       let agentId = cfg.agent_id
       if (cfg.mode === 'round_robin') {
-        const { data: profiles } = await db
-          .from('profiles')
-          .select('user_id')
+        const { data: conv } = await db
+          .from('conversations')
+          .select('tenant_id')
           .eq('user_id', args.automation.user_id)
-          .limit(1)
-        agentId = profiles?.[0]?.user_id
+          .eq('contact_id', args.contactId)
+          .maybeSingle()
+        agentId = await resolveRoundRobinAgent(db, {
+          ownerUserId: args.automation.user_id,
+          tenantId: (conv as { tenant_id?: string | null } | null)?.tenant_id ?? null,
+        })
       }
       if (!agentId) return 'no agent resolved'
       await db
