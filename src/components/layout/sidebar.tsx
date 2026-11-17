@@ -17,6 +17,7 @@ import {
   Zap,
   Workflow,
   Building2,
+  UsersRound,
   Settings,
   LogOut,
   User,
@@ -55,6 +56,7 @@ const navItems: NavItem[] = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/automations', label: 'Automations', icon: Zap },
   { href: '/flows', label: 'Flows', icon: Workflow, beta: true },
+  { href: '/groups', label: 'Groups', icon: UsersRound },
   { href: '/tenants', label: 'Tenants', icon: Building2 },
 ];
 

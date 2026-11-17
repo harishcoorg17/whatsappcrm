@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest';
+import { validateGroupInput, validateInviteUrl } from './invite-url';
+
+describe('validateInviteUrl', () => {
+  it('accepts a group invite link and trims it', () => {
+    const r = validateInviteUrl('group', '  https://chat.whatsapp.com/AbC123_-xyz ');
+    expect(r).toEqual({ ok: true, url: 'https://chat.whatsapp.com/AbC123_-xyz' });
+  });
+
+  it('accepts a channel link', () => {
+    expect(
+      validateInviteUrl('channel', 'https://whatsapp.com/channel/0029VaABC123').ok
+    ).toBe(true);
+  });
+
+  it.each([
+    'http://chat.whatsapp.com/abc',
+    'https://evil.com/chat.whatsapp.com/abc',
+    'https://chat.whatsapp.com.evil.com/abc',
+    'https://chat.whatsapp.com@evil.com/abc',
+    'https://chat.whatsapp.com:8080/abc',
+    'https://chat.whatsapp.com/abc?x=1',
+    'https://chat.whatsapp.com/abc/def',
+    'https://chat.whatsapp.com/',
+    'javascript:alert(1)',
+    'https://wa.me/123',
+    'https://chat.whatsapp.com/abc def',
+  ])('rejects %s for a group', (url) => {
+    expect(validateInviteUrl('group', url).ok).toBe(false);
+  });
+
+  it('does not accept a channel link as a group link or vice versa', () => {
+    expect(validateInviteUrl('group', 'https://whatsapp.com/channel/abc').ok).toBe(false);
+    expect(validateInviteUrl('channel', 'https://chat.whatsapp.com/abc').ok).toBe(false);
+  });
+
+  it('rejects non-strings, empty and over-long values', () => {
+    expect(validateInviteUrl('group', undefined).ok).toBe(false);
+    expect(validateInviteUrl('group', '  ').ok).toBe(false);
+    expect(
+      validateInviteUrl('group', `https://chat.whatsapp.com/${'a'.repeat(300)}`).ok
+    ).toBe(false);
+  });
+});
+
+describe('validateGroupInput', () => {
+  const base = {
+    kind: 'group',
+    name: ' Goa Dec 12 ',
+    invite_url: 'https://chat.whatsapp.com/abc',
+    capacity: '30',
+    departure_date: '2026-12-12',
+  };
+
+  it('normalises a valid group', () => {
+    const r = validateGroupInput(base);
+    expect(r.ok && r.value).toMatchObject({
+      name: 'Goa Dec 12',
+      capacity: 30,
+      departure_date: '2026-12-12',
+      is_active: true,
+      description: null,
+    });
+  });
+
+  it('rejects a bad kind, empty name, bad capacity and bad date', () => {
+    expect(validateGroupInput({ ...base, kind: 'dm' }).ok).toBe(false);
+    expect(validateGroupInput({ ...base, name: ' ' }).ok).toBe(false);
+    expect(validateGroupInput({ ...base, capacity: 0 }).ok).toBe(false);
+    expect(validateGroupInput({ ...base, capacity: 2.5 }).ok).toBe(false);
+    expect(validateGroupInput({ ...base, departure_date: '2026-02-31' }).ok).toBe(false);
+    expect(validateGroupInput({ ...base, name: 'x'.repeat(121) }).ok).toBe(false);
+  });
+
+  it('drops capacity and date for channels', () => {
+    const r = validateGroupInput({
+      ...base,
+      kind: 'channel',
+      invite_url: 'https://whatsapp.com/channel/abc',
+    });
+    expect(r.ok && r.value).toMatchObject({ capacity: null, departure_date: null });
+  });
+
+  it('rejects a mismatched link for the kind', () => {
+    expect(
+      validateGroupInput({ ...base, invite_url: 'https://whatsapp.com/channel/abc' }).ok
+    ).toBe(false);
+  });
+});
