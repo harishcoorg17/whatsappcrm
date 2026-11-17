@@ -43,10 +43,10 @@ export function LandingHeader() {
           >
             Pricing
           </Link>
-          <Button render={<Link href="/login" />} variant="outline" size="lg">
+          <Button nativeButton={false} render={<Link href="/login" />} variant="outline" size="lg">
             Sign in
           </Button>
-          <Button render={<Link href="/signup" />} size="lg">
+          <Button nativeButton={false} render={<Link href="/signup" />} size="lg">
             Get started
           </Button>
         </nav>
@@ -68,10 +68,10 @@ export function Hero() {
         no developer.
       </p>
       <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-        <Button render={<Link href="/signup" />} size="lg">
+        <Button nativeButton={false} render={<Link href="/signup" />} size="lg">
           Connect your number
         </Button>
-        <Button render={<a href="#how-it-works" />} variant="outline" size="lg">
+        <Button nativeButton={false} render={<a href="#how-it-works" />} variant="outline" size="lg">
           See how it works
         </Button>
       </div>
@@ -208,7 +208,7 @@ export function FinalCta() {
         Ready to bring your WhatsApp into one place?
       </h2>
       <div className="mt-8 flex justify-center">
-        <Button render={<Link href="/signup" />} size="lg">
+        <Button nativeButton={false} render={<Link href="/signup" />} size="lg">
           Create your account
         </Button>
       </div>
