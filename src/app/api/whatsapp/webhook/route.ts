@@ -842,7 +842,13 @@ async function processMessage(
 
   // A CSAT rating (csat_1..csat_5) is an answer to our survey, not a message
   // for flows or automations.
-  if (await recordCsatReply(supabaseAdmin(), { conversationId: conversation.id, replyId: interactiveReplyId })) return;
+  if (
+    await recordCsatReply(supabaseAdmin(), {
+      conversationId: conversation.id,
+      replyId: interactiveReplyId,
+    })
+  )
+    return;
 
   // If this contact was a recent broadcast recipient, flag the reply
   // so the broadcast's `replied_count` advances (via the aggregate
@@ -900,6 +906,15 @@ async function processMessage(
       conversationId: conversation.id,
       contactId: contactRecord.id,
       inboundText: message.type === 'text' ? contentText : null,
+      inboundAudio:
+        message.type === 'audio' && message.audio?.id
+          ? {
+              mediaId: message.audio.id,
+              mimeType: message.audio.mime_type ?? null,
+              accessToken,
+            }
+          : null,
+      inboundMessageId: message.id,
     });
     aiHandled = aiOutcome !== 'skipped';
   }

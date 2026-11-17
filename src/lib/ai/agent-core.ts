@@ -21,10 +21,51 @@ export interface HistoryMessage {
   created_at: string;
 }
 
+/** Shown when the customer sends a voice note the AI cannot listen to. */
+export const VOICE_NOT_SUPPORTED_REPLY =
+  "Sorry, I can't listen to voice notes here yet. Could you please type your question?";
+
+export const LEAD_FIELDS = [
+  'destination',
+  'travel_dates',
+  'group_size',
+  'budget',
+] as const;
+export type LeadField = (typeof LEAD_FIELDS)[number];
+export type LeadInfo = Partial<Record<LeadField, string>>;
+export const MAX_LEAD_VALUE_CHARS = 100;
+
+/**
+ * Reads the optional "lead" object the model returns. Only known fields with
+ * a short, non-empty text or number value survive; anything else is dropped.
+ */
+export function parseLead(value: unknown): LeadInfo | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const source = value as Record<string, unknown>;
+  const lead: LeadInfo = {};
+  for (const field of LEAD_FIELDS) {
+    const raw = source[field];
+    if (typeof raw !== 'string' && typeof raw !== 'number') continue;
+    const text = String(raw).replace(/\s+/g, ' ').trim();
+    if (text) lead[field] = text.slice(0, MAX_LEAD_VALUE_CHARS);
+  }
+  return Object.keys(lead).length > 0 ? lead : undefined;
+}
+
+/** A lead is worth tagging once we know where, plus one more detail. */
+export function isLeadQualified(lead: LeadInfo): boolean {
+  if (!lead.destination) return false;
+  return !!(lead.travel_dates || lead.group_size || lead.budget);
+}
+
 export function buildSystemPrompt(input: {
   businessName: string;
   instructions: string | null;
   knowledge: string | null;
+  /** Ask the model to report the trip details the customer shares. */
+  leadCapture?: boolean;
 }): string {
   const lines = [
     `You are the WhatsApp assistant for ${input.businessName}. You chat with customers on behalf of the team.`,
@@ -41,6 +82,14 @@ export function buildSystemPrompt(input: {
     'or',
     '{"action":"handoff","reason":"<short note for the team on why>"}',
   ];
+  if (input.leadCapture) {
+    lines.push(
+      '',
+      'Trip details: when the customer tells you where they want to go, when, how many people are travelling or their budget, add this to the same JSON object:',
+      '"lead":{"destination":"...","travel_dates":"...","group_size":"...","budget":"..."}',
+      'Include only details the customer actually stated in this chat (omit the rest, never guess). While helping, ask for one missing detail at a time, and only when it is natural to do so.'
+    );
+  }
   if (input.instructions?.trim()) {
     lines.push('', 'Business instructions:', input.instructions.trim());
   }
@@ -74,8 +123,8 @@ export function toChatMessages(history: HistoryMessage[]): ChatMessage[] {
 }
 
 export type AgentDecision =
-  | { type: 'reply'; text: string }
-  | { type: 'handoff'; reason: string };
+  | { type: 'reply'; text: string; lead?: LeadInfo }
+  | { type: 'handoff'; reason: string; lead?: LeadInfo };
 
 const UNUSABLE_REASON = 'The AI did not give a usable answer';
 
@@ -99,16 +148,20 @@ export function parseAgentDecision(raw: string): AgentDecision {
   if (!parsed || typeof parsed !== 'object') return unusable;
   const obj = parsed as Record<string, unknown>;
 
+  const lead = parseLead(obj.lead);
   if (obj.action === 'reply' && typeof obj.text === 'string') {
     const text = obj.text.trim().slice(0, MAX_REPLY_CHARS);
-    return text ? { type: 'reply', text } : unusable;
+    if (!text) return unusable;
+    return lead ? { type: 'reply', text, lead } : { type: 'reply', text };
   }
   if (obj.action === 'handoff') {
     const reason =
       typeof obj.reason === 'string' && obj.reason.trim()
         ? obj.reason.trim().slice(0, MAX_HANDOFF_REASON_CHARS)
         : 'The AI asked for a human';
-    return { type: 'handoff', reason };
+    return lead
+      ? { type: 'handoff', reason, lead }
+      : { type: 'handoff', reason };
   }
   return unusable;
 }
@@ -121,12 +174,29 @@ export type SkipReason =
   | 'human_active'
   | 'daily_cap';
 
+/**
+ * True when the last human message came before the chat was handed back to
+ * the bot, so it no longer counts as a human being active in the chat.
+ */
+function isBeforeResume(input: {
+  lastAgentMessageAt: string | null;
+  aiResumedAt?: string | null;
+}): boolean {
+  if (!input.lastAgentMessageAt || !input.aiResumedAt) return false;
+  const agentAt = new Date(input.lastAgentMessageAt).getTime();
+  const resumedAt = new Date(input.aiResumedAt).getTime();
+  if (Number.isNaN(agentAt) || Number.isNaN(resumedAt)) return false;
+  return agentAt <= resumedAt;
+}
+
 export function shouldAnswer(input: {
   enabled: boolean;
   configured: boolean;
   isText: boolean;
   conversationStatus: string | null;
   lastAgentMessageAt: string | null;
+  /** When an agent last handed the chat back to the bot; null if never. */
+  aiResumedAt?: string | null;
   botRepliesLast24h: number;
   now: Date;
 }): { answer: true } | { answer: false; reason: SkipReason } {
@@ -136,7 +206,7 @@ export function shouldAnswer(input: {
   if (input.conversationStatus === 'pending') {
     return { answer: false, reason: 'handed_off' };
   }
-  if (input.lastAgentMessageAt) {
+  if (input.lastAgentMessageAt && !isBeforeResume(input)) {
     const age =
       input.now.getTime() - new Date(input.lastAgentMessageAt).getTime();
     if (age >= 0 && age < HUMAN_ACTIVE_WINDOW_MS) {

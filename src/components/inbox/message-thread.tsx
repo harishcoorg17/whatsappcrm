@@ -492,7 +492,13 @@ export function MessageThread({
         .update(
           status === 'pending'
             ? { status }
-            : { status, handoff_at: null, handoff_reason: null }
+            : {
+                status,
+                handoff_at: null,
+                handoff_reason: null,
+                // Handing back to the bot ends the AI's "human is active" pause.
+                ai_resumed_at: new Date().toISOString(),
+              }
         )
         .eq('id', conversation.id);
 

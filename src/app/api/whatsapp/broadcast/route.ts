@@ -1,16 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { sendTemplateMessage } from '@/lib/whatsapp/meta-api';
+import { sendTemplateToRecipient } from '@/lib/whatsapp/send-template-to-recipient';
 import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
 import { filterOptedOutRecipients } from '@/lib/whatsapp/consent';
 import type { SendTimeParams } from '@/lib/whatsapp/template-send-builder';
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard';
-import {
-  sanitizePhoneForMeta,
-  isValidE164,
-  phoneVariants,
-  isRecipientNotAllowedError,
-} from '@/lib/whatsapp/phone-utils';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -175,67 +169,31 @@ export async function POST(request: Request) {
     }
 
     for (const recipient of allowed) {
-      const sanitized = sanitizePhoneForMeta(recipient.phone);
+      const outcome = await sendTemplateToRecipient({
+        phoneNumberId,
+        accessToken,
+        templateName: template_name,
+        language: template_language || 'en_US',
+        template: templateRow,
+        recipient,
+      });
 
-      if (!isValidE164(sanitized)) {
-        results.push({
-          phone: recipient.phone,
-          status: 'failed',
-          error: 'Invalid phone number format',
-        });
-        failedCount++;
-        continue;
-      }
-
-      // Retry with phone variants on "not in allowed list" so numbers
-      // that differ only in a trunk-prefix 0 still reach recipients.
-      const variants = phoneVariants(sanitized);
-      let sentMessageId: string | null = null;
-      let lastError: string | null = null;
-
-      for (const variant of variants) {
-        try {
-          const result = await sendTemplateMessage({
-            phoneNumberId,
-            accessToken,
-            to: variant,
-            templateName: template_name,
-            language: template_language || 'en_US',
-            template: templateRow ?? undefined,
-            messageParams: recipient.messageParams,
-            params: recipient.params ?? [],
-          });
-          sentMessageId = result.messageId;
-          lastError = null;
-          break;
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : 'Unknown error';
-          if (!isRecipientNotAllowedError(errorMessage)) {
-            lastError = errorMessage;
-            break;
-          }
-          lastError = errorMessage;
-          // retry with next variant
-        }
-      }
-
-      if (sentMessageId) {
+      if (outcome.ok) {
         results.push({
           phone: recipient.phone,
           status: 'sent',
-          whatsapp_message_id: sentMessageId,
+          whatsapp_message_id: outcome.messageId,
         });
         sentCount++;
       } else {
         console.error(
           `Failed to send broadcast to ${recipient.phone}:`,
-          lastError
+          outcome.error
         );
         results.push({
           phone: recipient.phone,
           status: 'failed',
-          error: lastError || 'Unknown error',
+          error: outcome.error,
         });
         failedCount++;
       }

@@ -13,9 +13,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
-import { ArrowLeft, Send, Loader2, Users, Save } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Users, Save, CalendarClock } from 'lucide-react';
+import { toast } from 'sonner';
+import { SchedulePicker, localInputToIso } from '@/components/broadcasts/schedule-picker';
 
 interface AudienceConfig {
   type: string;
@@ -28,7 +29,8 @@ interface Step4Props {
   onNameChange: (name: string) => void;
   template: MessageTemplate;
   audience: AudienceConfig;
-  onSend: () => void;
+  /** `scheduledAt` (ISO) is set when the user chose to send later. */
+  onSend: (scheduledAt?: string) => void;
   onSaveDraft?: () => void;
   onBack: () => void;
   isProcessing: boolean;
@@ -47,6 +49,9 @@ export function Step4ScheduleSend({
   progress,
 }: Step4Props) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const [sendLater, setSendLater] = useState(false);
+  const [scheduleValue, setScheduleValue] = useState('');
+  const [scheduledIso, setScheduledIso] = useState<string | undefined>();
   const [estimatedReach, setEstimatedReach] = useState<number>(0);
   const [loadingReach, setLoadingReach] = useState(true);
   const [parallelConfig, setParallelConfig] = useState<ParallelBroadcastConfig>({
@@ -86,6 +91,21 @@ export function Step4ScheduleSend({
 
     calculateReach();
   }, [audience]);
+
+  function handleOpenConfirm() {
+    if (!sendLater) {
+      setScheduledIso(undefined);
+      setShowConfirm(true);
+      return;
+    }
+    const checked = localInputToIso(scheduleValue);
+    if (!checked.ok) {
+      toast.error(checked.error);
+      return;
+    }
+    setScheduledIso(checked.iso);
+    setShowConfirm(true);
+  }
 
   const audienceLabel =
     audience.type === 'all'
@@ -154,6 +174,44 @@ export function Step4ScheduleSend({
         onChange={setParallelConfig}
       />
 
+      {/* When to send */}
+      <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 space-y-3">
+        <p className="text-sm font-medium text-white">When to send</p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={sendLater ? 'outline' : 'default'}
+            onClick={() => setSendLater(false)}
+            disabled={isProcessing}
+            className={sendLater ? 'border-slate-700 text-slate-300' : ''}
+          >
+            Send now
+          </Button>
+          <Button
+            type="button"
+            variant={sendLater ? 'default' : 'outline'}
+            onClick={() => setSendLater(true)}
+            disabled={isProcessing}
+            className={sendLater ? '' : 'border-slate-700 text-slate-300'}
+          >
+            <CalendarClock className="h-4 w-4" />
+            Schedule for later
+          </Button>
+        </div>
+        {sendLater && (
+          <div className="space-y-1">
+            <SchedulePicker
+              value={scheduleValue}
+              onChange={setScheduleValue}
+              disabled={isProcessing}
+            />
+            <p className="text-xs text-slate-500">
+              Uses your local time. You can change or cancel until it starts sending.
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* Processing overlay */}
       {isProcessing && (
         <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
@@ -198,26 +256,27 @@ export function Step4ScheduleSend({
           )}
 
           <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
-          <DialogTrigger
-            render={
-              <Button
-                disabled={!name.trim() || isProcessing}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-              />
-            }
+          <Button
+            onClick={handleOpenConfirm}
+            disabled={!name.trim() || isProcessing}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
-            <Send className="h-4 w-4" />
-            Send Broadcast
-          </DialogTrigger>
+            {sendLater ? <CalendarClock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            {sendLater ? 'Schedule Broadcast' : 'Send Broadcast'}
+          </Button>
           <DialogContent className="border-slate-700 bg-slate-900 sm:max-w-md">
             <DialogHeader>
-              <DialogTitle className="text-white">Confirm Broadcast</DialogTitle>
+              <DialogTitle className="text-white">
+                {scheduledIso ? 'Confirm Schedule' : 'Confirm Broadcast'}
+              </DialogTitle>
               <DialogDescription className="text-slate-400">
-                You are about to send this broadcast to{' '}
+                You are about to {scheduledIso ? 'schedule' : 'send'} this broadcast to{' '}
                 <span className="font-medium text-white">{estimatedReach.toLocaleString()}</span>{' '}
                 contacts using the{' '}
                 <span className="font-medium text-white">{template.name}</span> template.
-                This action cannot be undone.
+                {scheduledIso
+                  ? `It will send automatically on ${new Date(scheduledIso).toLocaleString()}. You can cancel or reschedule it until then. Contacts who opt out before then are skipped.`
+                  : 'This action cannot be undone.'}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -231,12 +290,12 @@ export function Step4ScheduleSend({
               <Button
                 onClick={() => {
                   setShowConfirm(false);
-                  onSend();
+                  onSend(scheduledIso);
                 }}
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 <Send className="h-4 w-4" />
-                Confirm & Send
+                {scheduledIso ? 'Confirm & Schedule' : 'Confirm & Send'}
               </Button>
             </DialogFooter>
           </DialogContent>

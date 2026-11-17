@@ -991,6 +991,8 @@ export async function getMediaUrl(
 export interface DownloadMediaArgs {
   downloadUrl: string;
   accessToken: string;
+  /** Refuse files larger than this many bytes (checked before and after reading). */
+  maxBytes?: number;
 }
 
 /**
@@ -1000,15 +1002,22 @@ export interface DownloadMediaArgs {
 export async function downloadMedia(
   args: DownloadMediaArgs
 ): Promise<{ buffer: Buffer; contentType: string }> {
-  const { downloadUrl, accessToken } = args;
+  const { downloadUrl, accessToken, maxBytes } = args;
   const response = await fetch(downloadUrl, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!response.ok) {
     throw new Error(`Media download failed: ${response.status}`);
   }
+  const declared = Number(response.headers.get('content-length'));
+  if (maxBytes !== undefined && declared > maxBytes) {
+    throw new Error(`Media is larger than ${maxBytes} bytes`);
+  }
   const contentType =
     response.headers.get('content-type') || 'application/octet-stream';
   const buffer = Buffer.from(await response.arrayBuffer());
+  if (maxBytes !== undefined && buffer.length > maxBytes) {
+    throw new Error(`Media is larger than ${maxBytes} bytes`);
+  }
   return { buffer, contentType };
 }

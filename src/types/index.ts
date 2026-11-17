@@ -82,6 +82,8 @@ export interface Conversation {
   /** Set when the bot handed the chat to a human; bot is silent while status is 'pending'. */
   handoff_at?: string | null;
   handoff_reason?: string | null;
+  /** Set when an agent handed the chat back to the bot (migration 048). */
+  ai_resumed_at?: string | null;
   last_message_text?: string;
   last_message_at?: string;
   unread_count: number;

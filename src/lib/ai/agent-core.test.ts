@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   buildSystemPrompt,
   HUMAN_ACTIVE_WINDOW_MS,
+  isLeadQualified,
   MAX_AI_REPLIES_PER_DAY,
+  MAX_LEAD_VALUE_CHARS,
   MAX_REPLY_CHARS,
   parseAgentDecision,
+  parseLead,
   shouldAnswer,
   toChatMessages,
   type HistoryMessage,
@@ -185,9 +188,124 @@ describe('shouldAnswer', () => {
     });
   });
 
+  it('answers again right after the chat is handed back to the bot', () => {
+    const agentAt = new Date(now.getTime() - 5 * 60_000).toISOString();
+    const resumedAfter = new Date(now.getTime() - 60_000).toISOString();
+    expect(
+      shouldAnswer({
+        ...base,
+        lastAgentMessageAt: agentAt,
+        aiResumedAt: resumedAfter,
+      })
+    ).toEqual({ answer: true });
+  });
+
+  it('still pauses for a human who replied after the hand-back', () => {
+    const resumedAt = new Date(now.getTime() - 10 * 60_000).toISOString();
+    const agentAfter = new Date(now.getTime() - 60_000).toISOString();
+    expect(
+      shouldAnswer({
+        ...base,
+        lastAgentMessageAt: agentAfter,
+        aiResumedAt: resumedAt,
+      })
+    ).toEqual({ answer: false, reason: 'human_active' });
+  });
+
+  it('treats an unreadable resume time as never resumed', () => {
+    const agentAt = new Date(now.getTime() - 60_000).toISOString();
+    expect(
+      shouldAnswer({
+        ...base,
+        lastAgentMessageAt: agentAt,
+        aiResumedAt: 'not-a-date',
+      })
+    ).toEqual({ answer: false, reason: 'human_active' });
+  });
+
   it('stops at the daily cap', () => {
     expect(
       shouldAnswer({ ...base, botRepliesLast24h: MAX_AI_REPLIES_PER_DAY })
     ).toEqual({ answer: false, reason: 'daily_cap' });
+  });
+});
+
+describe('parseLead', () => {
+  it('keeps known fields as trimmed text, including numbers', () => {
+    expect(
+      parseLead({
+        destination: '  Goa ',
+        travel_dates: 'last week of December',
+        group_size: 4,
+        budget: '50k per person',
+        favourite_colour: 'blue',
+      })
+    ).toEqual({
+      destination: 'Goa',
+      travel_dates: 'last week of December',
+      group_size: '4',
+      budget: '50k per person',
+    });
+  });
+
+  it('drops empty, oversized-type and non-object values', () => {
+    expect(parseLead({ destination: '   ', budget: { amount: 1 } })).toBe(
+      undefined
+    );
+    expect(parseLead(null)).toBe(undefined);
+    expect(parseLead(['Goa'])).toBe(undefined);
+    expect(parseLead('Goa')).toBe(undefined);
+  });
+
+  it('caps long values', () => {
+    const lead = parseLead({ destination: 'x'.repeat(500) });
+    expect(lead?.destination).toHaveLength(MAX_LEAD_VALUE_CHARS);
+  });
+});
+
+describe('isLeadQualified', () => {
+  it('needs a destination plus one more detail', () => {
+    expect(isLeadQualified({ destination: 'Goa' })).toBe(false);
+    expect(isLeadQualified({ budget: '50k', group_size: '4' })).toBe(false);
+    expect(isLeadQualified({ destination: 'Goa', group_size: '4' })).toBe(true);
+    expect(isLeadQualified({ destination: 'Goa', travel_dates: 'Dec' })).toBe(
+      true
+    );
+  });
+});
+
+describe('parseAgentDecision lead details', () => {
+  it('carries the lead on a reply and on a handoff', () => {
+    expect(
+      parseAgentDecision(
+        '{"action":"reply","text":"Great!","lead":{"destination":"Goa"}}'
+      )
+    ).toEqual({ type: 'reply', text: 'Great!', lead: { destination: 'Goa' } });
+    expect(
+      parseAgentDecision(
+        '{"action":"handoff","reason":"wants a call","lead":{"budget":"1L"}}'
+      )
+    ).toEqual({
+      type: 'handoff',
+      reason: 'wants a call',
+      lead: { budget: '1L' },
+    });
+  });
+
+  it('ignores a malformed lead without losing the reply', () => {
+    expect(
+      parseAgentDecision('{"action":"reply","text":"Hi","lead":"Goa"}')
+    ).toEqual({ type: 'reply', text: 'Hi' });
+  });
+});
+
+describe('buildSystemPrompt lead capture', () => {
+  const base = { businessName: 'Amstago', instructions: null, knowledge: null };
+
+  it('asks for trip details only when lead capture is on', () => {
+    expect(buildSystemPrompt({ ...base, leadCapture: true })).toContain(
+      '"lead"'
+    );
+    expect(buildSystemPrompt(base)).not.toContain('"lead"');
   });
 });

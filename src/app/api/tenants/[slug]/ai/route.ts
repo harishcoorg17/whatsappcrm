@@ -36,7 +36,13 @@ interface AiRow {
   ai_api_key_enc: string | null;
   ai_instructions: string | null;
   ai_knowledge: string | null;
+  /** Absent until migration 048 is applied. */
+  ai_lead_capture?: boolean | null;
 }
+
+const BASE_COLUMNS =
+  'ai_enabled, ai_provider, ai_model, ai_api_key_enc, ai_instructions, ai_knowledge';
+const ALL_COLUMNS = `${BASE_COLUMNS}, ai_lead_capture`;
 
 function toResponse(row: AiRow | null) {
   const provider = isAiProvider(row?.ai_provider) ? row?.ai_provider : null;
@@ -47,6 +53,7 @@ function toResponse(row: AiRow | null) {
     instructions: row?.ai_instructions ?? '',
     knowledge: row?.ai_knowledge ?? '',
     hasKey: !!row?.ai_api_key_enc,
+    leadCapture: row?.ai_lead_capture === true,
   };
 }
 
@@ -56,13 +63,15 @@ export async function GET(_request: NextRequest, context: Context) {
     const auth = await authorizeTenantAccess(slug, { allowTeamAdmins: true });
     if (!auth.ok) return auth.response;
 
-    const { data, error } = await auth.db
-      .from('crm_tenants')
-      .select(
-        'ai_enabled, ai_provider, ai_model, ai_api_key_enc, ai_instructions, ai_knowledge'
-      )
-      .eq('id', auth.tenant.id)
-      .maybeSingle();
+    const load = (columns: string) =>
+      auth.db
+        .from('crm_tenants')
+        .select(columns)
+        .eq('id', auth.tenant.id)
+        .maybeSingle();
+    let { data, error } = await load(ALL_COLUMNS);
+    // Migration 048 not applied yet: settings still load, without lead capture.
+    if (error) ({ data, error } = await load(BASE_COLUMNS));
     if (error) {
       console.error('[tenants/ai] load failed:', error.message);
       return problem(
@@ -146,14 +155,31 @@ export async function PUT(request: NextRequest, context: Context) {
         .response;
     }
 
-    const { data: saved, error } = await auth.db
-      .from('crm_tenants')
-      .update(update)
-      .eq('id', auth.tenant.id)
-      .select(
-        'ai_enabled, ai_provider, ai_model, ai_api_key_enc, ai_instructions, ai_knowledge'
-      )
-      .maybeSingle();
+    const wantsLeadCapture = typeof body.leadCapture === 'boolean';
+    if (wantsLeadCapture) update.ai_lead_capture = body.leadCapture;
+
+    const save = (values: Record<string, unknown>, columns: string) =>
+      auth.db
+        .from('crm_tenants')
+        .update(values)
+        .eq('id', auth.tenant.id)
+        .select(columns)
+        .maybeSingle();
+    let { data: saved, error } = await save(update, ALL_COLUMNS);
+    if (error && wantsLeadCapture) {
+      // Most likely migration 048 is missing. Turning lead capture on cannot
+      // work without it; every other change can still be saved.
+      if (body.leadCapture === true) {
+        return problem(
+          'Lead capture needs the latest database migration (048). Run it, then try again.',
+          400
+        ).response;
+      }
+      const withoutLead = Object.fromEntries(
+        Object.entries(update).filter(([key]) => key !== 'ai_lead_capture')
+      );
+      ({ data: saved, error } = await save(withoutLead, BASE_COLUMNS));
+    }
     if (error) {
       console.error('[tenants/ai] save failed:', error.message);
       return problem('Could not save AI settings', 500).response;

@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Broadcast, BroadcastRecipient, RecipientStatus } from '@/types';
 import { Button } from '@/components/ui/button';
+import { ScheduleControls } from '@/components/broadcasts/schedule-controls';
 import {
   Table,
   TableBody,
@@ -346,6 +347,24 @@ export default function BroadcastDetailPage() {
           </Button>
         )}
       </div>
+
+      {broadcast.status === 'scheduled' && broadcast.scheduled_at && (
+        <ScheduleControls
+          broadcastId={broadcast.id}
+          scheduledAt={broadcast.scheduled_at}
+          onChanged={(patch) =>
+            setBroadcast((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    status: patch.status as Broadcast['status'],
+                    scheduled_at: patch.scheduled_at ?? undefined,
+                  }
+                : prev,
+            )
+          }
+        />
+      )}
 
       {/* Stats — 6 cards: Total / Sent / Delivered / Read / Replied / Failed */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

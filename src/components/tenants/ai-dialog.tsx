@@ -33,6 +33,7 @@ interface AiSettings {
   instructions: string;
   knowledge: string;
   hasKey: boolean;
+  leadCapture: boolean;
 }
 
 const DEFAULT_PROVIDER: AiProvider = 'anthropic';
@@ -44,6 +45,7 @@ const DEFAULT_SETTINGS: AiSettings = {
   instructions: '',
   knowledge: '',
   hasKey: false,
+  leadCapture: false,
 };
 
 const KEY_HELP: Record<AiProvider, string> = {
@@ -96,6 +98,7 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
         instructions: body.instructions ?? '',
         knowledge: body.knowledge ?? '',
         hasKey: body.hasKey === true,
+        leadCapture: body.leadCapture === true,
       });
     } catch {
       toast.error('Network error');
@@ -172,6 +175,7 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
           model: settings.model,
           instructions: settings.instructions,
           knowledge: settings.knowledge,
+          leadCapture: settings.leadCapture,
           ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
           ...(clearKey && !apiKey.trim() ? { clearKey: true } : {}),
         }),
@@ -225,6 +229,29 @@ export function AiDialog({ tenant, onClose }: AiDialogProps) {
                 from the information below. If it is unsure, or the customer
                 asks for a person, it hands the chat to your team. It stays
                 quiet while one of your agents is replying.
+              </p>
+            </section>
+
+            <section className="space-y-2 border-t border-slate-800 pt-4">
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={settings.leadCapture}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      leadCapture: e.target.checked,
+                    }))
+                  }
+                  className="accent-primary h-4 w-4"
+                />
+                Capture trip details from chats
+              </label>
+              <p className="text-xs text-slate-400">
+                For travel businesses. The AI saves the destination, travel
+                dates, group size and budget a customer mentions onto their
+                contact, and tags them &quot;ai-lead&quot; once it knows the
+                destination plus one more detail. Needs migration 048.
               </p>
             </section>
 
