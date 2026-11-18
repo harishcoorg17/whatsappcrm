@@ -13,6 +13,7 @@ import {
   type HistoryMessage,
 } from './agent-core';
 import { saveLead } from './lead';
+import { loadTourKnowledge } from './tour-facts';
 import {
   callProvider,
   DEFAULT_MODELS,
@@ -314,6 +315,17 @@ export async function runAiAgent(
     }
 
     const history = await loadHistory(input.db, input.conversationId);
+    // A customer who came from a tour page gets answers about that tour.
+    const tourFacts = await loadTourKnowledge({
+      db: input.db,
+      conversationId: input.conversationId,
+      customerTexts: [
+        ...history
+          .filter((m) => m.sender_type === 'customer')
+          .map((m) => m.content_text),
+        customerText,
+      ],
+    });
     const messages = toChatMessages(
       transcript
         ? [
@@ -335,7 +347,9 @@ export async function runAiAgent(
       system: buildSystemPrompt({
         businessName: config.name?.trim() || 'this business',
         instructions: config.ai_instructions,
-        knowledge: config.ai_knowledge,
+        knowledge: [config.ai_knowledge, tourFacts]
+          .filter((part) => part?.trim())
+          .join('\n\n'),
         leadCapture: !!config.ai_lead_capture,
       }),
       messages,

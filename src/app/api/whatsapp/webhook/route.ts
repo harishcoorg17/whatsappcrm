@@ -18,6 +18,8 @@ import { applyInboundRules } from '@/lib/whatsapp/inbound-rules';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import { handleConsentKeyword } from '@/lib/whatsapp/consent';
 import { runAiAgent } from '@/lib/ai/agent';
+import { parseTourEnquiry } from '@/lib/ai/tour-enquiry';
+import { isAiReady } from '@/lib/ai/tour-facts';
 import { persistAdReferral } from '@/lib/whatsapp/referral-store';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
@@ -874,24 +876,34 @@ async function processMessage(
   // no active flows take the runner's early-exit "no_match" path
   // basically for free (one indexed SELECT for the active run).
   // ============================================================
-  const flowResult = await dispatchInboundToFlows({
-    userId,
-    contactId: contactRecord.id,
-    conversationId: conversation.id,
-    message: interactiveReplyId
-      ? {
-          kind: 'interactive_reply',
-          reply_id: interactiveReplyId,
-          reply_title: contentText ?? '',
-          meta_message_id: message.id,
-        }
-      : {
-          kind: 'text',
-          text: contentText ?? message.text?.body ?? '',
-          meta_message_id: message.id,
-        },
-    isFirstInboundMessage,
-  });
+  // A message from a tour page's WhatsApp button names the tour, so the AI
+  // (which can look that tour up) answers it instead of a fixed menu. Only
+  // when the AI is ready; otherwise the flows keep handling it.
+  const tourEnquiryForAi =
+    !!tenantId &&
+    !interactiveReplyId &&
+    !!parseTourEnquiry(contentText ?? message.text?.body) &&
+    (await isAiReady(supabaseAdmin(), tenantId));
+  const flowResult = tourEnquiryForAi
+    ? { consumed: false }
+    : await dispatchInboundToFlows({
+        userId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+        message: interactiveReplyId
+          ? {
+              kind: 'interactive_reply',
+              reply_id: interactiveReplyId,
+              reply_title: contentText ?? '',
+              meta_message_id: message.id,
+            }
+          : {
+              kind: 'text',
+              text: contentText ?? message.text?.body ?? '',
+              meta_message_id: message.id,
+            },
+        isFirstInboundMessage,
+      });
   const flowConsumed = flowResult.consumed;
 
   // AI agent: when no bot flow took the message and the tenant switched the
