@@ -20,6 +20,7 @@ function makeDb(): FakeDb {
         status: 'active',
       },
     ],
+    crm_tenant_numbers: [],
     contacts: [],
     conversations: [],
     messages: [],
@@ -126,6 +127,22 @@ describe('handleCoexistenceChange — routing', () => {
     });
     expect(summary.note).toMatch(/no active tenant/);
     expect(db.tables.messages).toHaveLength(0);
+  });
+
+  it("files an echo sent from a tenant's secondary number", async () => {
+    db.tables.crm_tenant_numbers.push({
+      phone_number_id: 'p2',
+      status: 'active',
+      access_token_enc: null,
+      'crm_tenants.status': 'active',
+      crm_tenants: { id: 't1', owner_user_id: 'u1', access_token_enc: null },
+    });
+    const summary = await handleCoexistenceChange(db.client, {
+      field: 'smb_message_echoes',
+      value: { ...echo('a'), metadata: { phone_number_id: 'p2' } },
+    });
+    expect(summary).toMatchObject({ stored: 1 });
+    expect(db.tables.messages).toHaveLength(1);
   });
 
   it('stores nothing for a tenant that has no owner', async () => {

@@ -6,6 +6,7 @@ import {
   type CoexistenceMessage,
   type ContactChange,
 } from './coexistence-events';
+import { resolveTenantRoute } from './number-routing';
 import { phonesMatch } from './phone-utils';
 
 /**
@@ -55,19 +56,11 @@ async function resolveTarget(
   db: SupabaseClient,
   phoneNumberId: string
 ): Promise<Target | null> {
-  const { data, error } = await db
-    .from('crm_tenants')
-    .select('id, owner_user_id')
-    .eq('phone_number_id', phoneNumberId)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (error) {
-    console.error('[coexistence] tenant lookup failed:', error.message);
-    return null;
-  }
-  if (!data?.owner_user_id) return null;
-  return { tenantId: data.id, ownerUserId: data.owner_user_id };
+  // Same lookup as inbound messages: a tenant can own several numbers, and
+  // only the primary one is mirrored on crm_tenants.
+  const route = await resolveTenantRoute(db, phoneNumberId);
+  if (!route?.ownerUserId) return null;
+  return { tenantId: route.tenantId, ownerUserId: route.ownerUserId };
 }
 
 /** The tenant's contacts, loaded once per webhook and kept up to date. */
