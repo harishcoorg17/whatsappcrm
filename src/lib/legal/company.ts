@@ -10,7 +10,7 @@
 
 export const LEGAL = {
   product: 'ConverMesh',
-  productFull: 'ConverMesh WhatsApp CRM',
+  productFull: 'ConverMesh CRM',
   // Fixed on purpose: the policy must name the real domain, not whatever
   // NEXT_PUBLIC_SITE_URL is set to in a dev or preview environment.
   siteUrl: 'https://convermesh.com',

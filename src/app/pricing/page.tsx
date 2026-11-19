@@ -6,7 +6,7 @@ import { PRICING_FAQ } from '@/components/landing/pricing-content';
 export const metadata: Metadata = {
   title: 'Pricing',
   description:
-    'Simple per-team pricing for ConverMesh WhatsApp CRM. Shared inbox, automations, chatbot flows and human handoff. Meta message fees at cost.',
+    'Simple per-team pricing for ConverMesh CRM. Shared inbox, automations, chatbot flows and human handoff. Meta message fees at cost.',
 };
 
 export default function PricingPage() {

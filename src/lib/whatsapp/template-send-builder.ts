@@ -110,7 +110,7 @@ function buildHeaderComponent(
       mediaPayload = { link: parsed.toString() };
     } catch {
       throw new Error(
-        'Header media URL is not a valid URI — provide a full URL (e.g. https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800).',
+        'Header media URL is not a valid URI — provide a full URL (e.g. https://example.com/banner.jpg).',
       );
     }
   } else if (params.headerMediaId?.trim()) {

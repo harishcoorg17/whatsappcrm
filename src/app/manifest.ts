@@ -7,7 +7,7 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'ConverMesh WhatsApp CRM',
+    name: 'ConverMesh CRM',
     short_name: 'ConverMesh',
     description: 'Shared WhatsApp inbox, pipelines and automations for your team.',
     start_url: '/inbox',

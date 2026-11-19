@@ -2,7 +2,7 @@ import { LEGAL } from './company';
 import type { LegalDoc } from './types';
 
 /**
- * Privacy policy for ConverMesh WhatsApp CRM. Written from what the product
+ * Privacy policy for ConverMesh CRM. Written from what the product
  * actually does (accounts and workspaces in Supabase, messages through Meta's
  * WhatsApp Business Platform, encrypted WhatsApp credentials). Review it with a
  * lawyer and keep it in step with the product before relying on it.

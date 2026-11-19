@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { DEFAULT_MEDIA_SAMPLES } from '@/lib/whatsapp/template-components';
 import {
   Plus,
   Trash2,
@@ -238,18 +239,10 @@ export function TemplateManager() {
       sample_values.header = [form.header_sample.trim()];
     }
 
-    const defaultSampleMedia: Record<string, string> = {
-      image:
-        'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&auto=format&fit=crop',
-      video:
-        'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
-      document:
-        'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-    };
-
     const headerMediaUrl =
       form.header_format !== 'none' && form.header_format !== 'text'
-        ? form.header_media_url.trim() || defaultSampleMedia[form.header_format]
+        ? form.header_media_url.trim() ||
+          DEFAULT_MEDIA_SAMPLES[form.header_format]
         : undefined;
 
     return {

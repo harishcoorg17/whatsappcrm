@@ -384,7 +384,7 @@ export default function TenantsPage() {
       <PageHeader
         className="mb-6"
         title="Tenants"
-        description="Manage all ConverMesh WhatsApp CRM tenants"
+        description="Manage all ConverMesh CRM tenants"
         actions={
           <Button onClick={() => setShowNew(true)} className="gap-2">
             <Plus className="h-4 w-4" />

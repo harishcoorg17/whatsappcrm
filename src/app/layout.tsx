@@ -22,11 +22,11 @@ const inter = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: 'ConverMesh WhatsApp CRM',
-    template: '%s — ConverMesh WhatsApp CRM',
+    default: 'ConverMesh CRM',
+    template: '%s — ConverMesh CRM',
   },
   description:
-    'ConverMesh WhatsApp CRM — multi-tenant WhatsApp Business management.',
+    'ConverMesh CRM — multi-tenant WhatsApp Business management.',
   robots: {
     index: false,
     follow: false,

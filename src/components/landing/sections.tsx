@@ -138,7 +138,7 @@ export function Comparison() {
       <div className="border-border mt-12 overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[34rem] text-left text-sm">
           <caption className="sr-only">
-            Typical WhatsApp tools compared with ConverMesh WhatsApp CRM
+            Typical WhatsApp tools compared with ConverMesh CRM
           </caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>
@@ -236,7 +236,11 @@ export function LandingFooter() {
           Terms and Conditions
         </Link>
       </nav>
-      © {new Date().getFullYear()} ConverMesh WhatsApp CRM
+      <p>© {new Date().getFullYear()} ConverMesh CRM</p>
+      <p className="mt-1 text-xs opacity-70">
+        WhatsApp, Meta and Facebook are trademarks of Meta Platforms, Inc.
+        ConverMesh is not affiliated with or endorsed by Meta.
+      </p>
     </footer>
   );
 }

@@ -2,7 +2,7 @@ import { LEGAL } from './company';
 import type { LegalDoc } from './types';
 
 /**
- * Terms of Service for ConverMesh WhatsApp CRM. A general-purpose draft that
+ * Terms of Service for ConverMesh CRM. A general-purpose draft that
  * fits what the product does. Review it with a lawyer, in particular the
  * liability cap, the governing law and the commercial terms, before relying
  * on it.

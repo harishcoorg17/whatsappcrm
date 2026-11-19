@@ -34,9 +34,20 @@ interface MetaButtonPayload {
   example?: string[];
 }
 
-const DEFAULT_MEDIA_SAMPLES: Record<'image' | 'video' | 'document', string> = {
-  image: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&auto=format&fit=crop',
-  video: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
+const SAMPLE_BASE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  process.env.NEXT_PUBLIC_APP_URL ||
+  ''
+).replace(/\/+$/, '');
+
+/**
+ * Self-hosted placeholder media used as the template-review sample when the
+ * user supplies none. Video: drop `public/sample-video.mp4` (or set
+ * NEXT_PUBLIC_SAMPLE_VIDEO_URL) — no third-party media is bundled.
+ */
+export const DEFAULT_MEDIA_SAMPLES: Record<'image' | 'video' | 'document', string> = {
+  image: `${SAMPLE_BASE_URL}/icon-512.png`,
+  video: process.env.NEXT_PUBLIC_SAMPLE_VIDEO_URL || `${SAMPLE_BASE_URL}/sample-video.mp4`,
   document: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
 };
 
