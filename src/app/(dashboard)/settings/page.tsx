@@ -11,6 +11,7 @@ import {
   Palette,
   Mail,
   Plug,
+  KeyRound,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PageHeader } from '@/components/ui/page-header';
@@ -24,6 +25,7 @@ import { PasswordForm } from '@/components/settings/password-form';
 import { SessionsCard } from '@/components/settings/sessions-card';
 import { StoreIntegrations } from '@/components/settings/store-integrations';
 import { AppearancePanel } from '@/components/settings/appearance-panel';
+import { ApiKeysManager } from '@/components/settings/api-keys-manager';
 
 const TAB_VALUES = [
   'profile',
@@ -33,6 +35,7 @@ const TAB_VALUES = [
   'quick-replies',
   'tags',
   'stores',
+  'api-keys',
   'appearance',
 ] as const;
 type TabValue = (typeof TAB_VALUES)[number];
@@ -124,6 +127,13 @@ export default function SettingsPage() {
             Store integrations
           </TabsTrigger>
           <TabsTrigger
+            value="api-keys"
+            className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
+          >
+            <KeyRound className="size-4" />
+            API keys
+          </TabsTrigger>
+          <TabsTrigger
             value="appearance"
             className="data-active:text-primary text-slate-400 data-active:bg-slate-800"
           >
@@ -160,6 +170,10 @@ export default function SettingsPage() {
 
         <TabsContent value="stores">
           <StoreIntegrations />
+        </TabsContent>
+
+        <TabsContent value="api-keys">
+          <ApiKeysManager />
         </TabsContent>
 
         <TabsContent value="appearance">
