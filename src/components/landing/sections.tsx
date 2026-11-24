@@ -60,7 +60,7 @@ export function Hero() {
     <section className="mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-28">
       <h1 className="text-4xl font-bold tracking-tight sm:text-6xl">
         Run your customer chats on{' '}
-        <span className="text-primary">WhatsApp</span>, as a team
+        <span className="text-primary">one inbox</span>, as a team
       </h1>
       <p className="text-muted-foreground mx-auto mt-6 max-w-2xl text-lg">
         A shared inbox, lead pipelines, broadcasts and automations for your
@@ -109,7 +109,7 @@ export function Benefits() {
     <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
       <SectionHeading
         eyebrow="Benefits"
-        title="Everything a team needs to handle WhatsApp well"
+        title="Everything a team needs to handle customer chats well"
       />
       <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {BENEFITS.map(({ icon: Icon, title, body }) => (
@@ -133,12 +133,12 @@ export function Comparison() {
       <SectionHeading
         eyebrow="How we’re different"
         title="Official, safe and made for many businesses"
-        lead="Many WhatsApp tools take shortcuts to get you connected. We use the official route and keep every business separate."
+        lead="Many chat tools take shortcuts to get you connected. We use the official route and keep every business separate."
       />
       <div className="border-border mt-12 overflow-x-auto rounded-xl border">
         <table className="w-full min-w-[34rem] text-left text-sm">
           <caption className="sr-only">
-            Typical WhatsApp tools compared with ConverMesh CRM
+            Typical chat tools compared with ConverMesh CRM
           </caption>
           <thead className="bg-muted text-muted-foreground">
             <tr>
@@ -205,7 +205,7 @@ export function FinalCta() {
   return (
     <section className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
       <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-        Ready to bring your WhatsApp into one place?
+        Ready to bring your customer chats into one place?
       </h2>
       <div className="mt-8 flex justify-center">
         <Button nativeButton={false} render={<Link href="/signup" />} size="lg">

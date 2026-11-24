@@ -11,9 +11,9 @@ import {
 } from '@/components/landing/sections';
 
 export const metadata: Metadata = {
-  title: 'WhatsApp team inbox, pipelines and automations',
+  title: 'Team inbox, pipelines and automations for customer chats',
   description:
-    'Connect your WhatsApp Business number in minutes. Shared inbox, lead pipelines, broadcasts and automations on the official WhatsApp Business Platform.',
+    'Connect your business number in minutes. Shared inbox, lead pipelines, broadcasts and automations. Integrates with the WhatsApp Business Platform.',
 };
 
 export default function HomePage() {

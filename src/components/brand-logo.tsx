@@ -4,12 +4,12 @@ import { cn } from '@/lib/utils';
 /** Navy wordmark, for light surfaces. */
 const LIGHT_LOGO = {
   src: '/ConverMesh%20Navy%20and%20Teal%20Logo.png',
-  ratio: 2172 / 724,
+  ratio: 2000 / 660,
 };
 /** White wordmark, for dark surfaces. */
 const DARK_LOGO = {
   src: '/ConverMesh-transparent-background.png',
-  ratio: 2129 / 692,
+  ratio: 2000 / 642,
 };
 
 /**
