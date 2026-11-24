@@ -1,7 +1,8 @@
 # ConverMesh
 
-A WhatsApp CRM: shared inbox, contacts, sales pipelines, broadcasts and
-no-code automations, built on Next.js and Supabase.
+A CRM with a shared inbox, contacts, sales pipelines, broadcasts and
+no-code automations, built on Next.js and Supabase. Integrates with the
+WhatsApp Business Platform.
 
 > ConverMesh is built on [wacrm](https://github.com/ArnasDon/wacrm) by Arnas
 > Donauskas, used under the MIT License. See [`NOTICE.md`](./NOTICE.md) and

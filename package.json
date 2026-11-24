@@ -1,8 +1,8 @@
 {
-  "name": "novacompass-whatsapp-crm",
+  "name": "convermesh-crm",
   "version": "0.2.2",
   "private": true,
-  "description": "Self-hostable CRM template for WhatsApp built on Next.js and Supabase — shared inbox, contacts, sales pipelines, broadcasts, and no-code automations.",
+  "description": "ConverMesh CRM: shared inbox, contacts, sales pipelines, broadcasts and no-code automations on Next.js and Supabase. Integrates with the WhatsApp Business Platform.",
   "license": "MIT",
   "author": "Arnas Donauskas",
   "repository": {
