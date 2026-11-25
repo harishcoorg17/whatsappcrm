@@ -645,7 +645,8 @@ async function handleReaction(
 
 async function processMessage(
   message: WhatsAppMessage,
-  contact: { profile: { name: string }; wa_id: string },
+  // Meta omits `profile` for some senders, so the name can be missing.
+  contact: { profile?: { name?: string }; wa_id: string },
   userId: string,
   accessToken: string,
   tenantId?: string,
@@ -653,7 +654,7 @@ async function processMessage(
   receivingNumberId?: string
 ) {
   const senderPhone = normalizePhone(message.from);
-  const contactName = contact.profile.name;
+  const contactName = contact.profile?.name ?? message.from;
 
   // Find or create contact
   const contactOutcome = await findOrCreateContact(

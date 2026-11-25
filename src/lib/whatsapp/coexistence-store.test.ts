@@ -67,6 +67,11 @@ function makeDb(): FakeDb {
         filters.push((row) => row[column] === value);
         return query;
       },
+      is: (column: string, value: unknown) => {
+        filters.push((row) => (row[column] ?? null) === value);
+        return query;
+      },
+      limit: () => query,
       in: (column: string, values: unknown[]) => {
         filters.push((row) => values.includes(row[column]));
         return query;
@@ -434,5 +439,62 @@ describe('handleCoexistenceChange — contacts', () => {
     });
     expect(summary).toMatchObject({ stored: 0, skipped: 1 });
     expect(db.tables.contacts).toHaveLength(1);
+  });
+});
+
+describe('handleCoexistenceChange — conversations are kept per number', () => {
+  const secondNumber = () => {
+    db.tables.crm_tenant_numbers.push({
+      phone_number_id: 'p2',
+      status: 'active',
+      access_token_enc: null,
+      'crm_tenants.status': 'active',
+      crm_tenants: { id: 't1', owner_user_id: 'u1', access_token_enc: null },
+    });
+  };
+  const contact = { id: 'c1', user_id: 'u1', tenant_id: 't1', phone: CUSTOMER, name: 'Asha' };
+
+  it('files a phone-sent message in the chat for that number, not the other one', async () => {
+    secondNumber();
+    db.tables.contacts.push(contact);
+    db.tables.conversations.push(
+      { id: 'conv-p1', user_id: 'u1', tenant_id: 't1', contact_id: 'c1', phone_number_id: 'p1', last_message_at: null },
+      { id: 'conv-p2', user_id: 'u1', tenant_id: 't1', contact_id: 'c1', phone_number_id: 'p2', last_message_at: null }
+    );
+    const summary = await handleCoexistenceChange(db.client, {
+      field: 'smb_message_echoes',
+      value: { ...echo('a'), metadata: { phone_number_id: 'p2' } },
+    });
+    expect(summary).toMatchObject({ stored: 1 });
+    expect(db.tables.messages.map((m) => m.conversation_id)).toEqual(['conv-p2']);
+  });
+
+  it('creates the chat for the number when the contact only has one on another number', async () => {
+    secondNumber();
+    db.tables.contacts.push(contact);
+    db.tables.conversations.push({
+      id: 'conv-p1', user_id: 'u1', tenant_id: 't1', contact_id: 'c1', phone_number_id: 'p1', last_message_at: null,
+    });
+    await handleCoexistenceChange(db.client, {
+      field: 'smb_message_echoes',
+      value: { ...echo('a'), metadata: { phone_number_id: 'p2' } },
+    });
+    const created = db.tables.conversations.find((c) => c.id !== 'conv-p1');
+    expect(created).toMatchObject({ contact_id: 'c1', phone_number_id: 'p2' });
+    expect(db.tables.messages[0].conversation_id).toBe(created?.id);
+  });
+
+  it('adopts an older chat that never recorded its number', async () => {
+    db.tables.contacts.push(contact);
+    db.tables.conversations.push({
+      id: 'conv-old', user_id: 'u1', tenant_id: 't1', contact_id: 'c1', phone_number_id: null, last_message_at: null,
+    });
+    await handleCoexistenceChange(db.client, {
+      field: 'smb_message_echoes',
+      value: echo('a'),
+    });
+    expect(db.tables.conversations).toHaveLength(1);
+    expect(db.tables.conversations[0].phone_number_id).toBe('p1');
+    expect(db.tables.messages[0].conversation_id).toBe('conv-old');
   });
 });

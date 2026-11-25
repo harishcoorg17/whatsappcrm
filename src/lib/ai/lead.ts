@@ -121,17 +121,23 @@ async function loadStoredLead(
   return stored;
 }
 
-async function tagContact(
+/** Finds or creates a tag by name for this owner and puts it on the contact. */
+export async function tagContactByName(
   db: AdminClient,
-  userId: string,
-  tenantId: string,
-  contactId: string
+  args: {
+    userId: string;
+    tenantId: string;
+    contactId: string;
+    name: string;
+    color: string;
+  }
 ): Promise<void> {
+  const { userId, tenantId, contactId, name, color } = args;
   const { data: existing } = await db
     .from('tags')
     .select('id')
     .eq('user_id', userId)
-    .eq('name', LEAD_TAG_NAME)
+    .eq('name', name)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -140,12 +146,7 @@ async function tagContact(
   if (!tagId) {
     const { data: created, error } = await db
       .from('tags')
-      .insert({
-        user_id: userId,
-        tenant_id: tenantId,
-        name: LEAD_TAG_NAME,
-        color: LEAD_TAG_COLOR,
-      })
+      .insert({ user_id: userId, tenant_id: tenantId, name, color })
       .select('id')
       .single();
     if (error) throw new Error(`tag create: ${error.message}`);
@@ -159,6 +160,21 @@ async function tagContact(
       { onConflict: 'contact_id,tag_id' }
     );
   if (error) throw new Error(`tag contact: ${error.message}`);
+}
+
+async function tagContact(
+  db: AdminClient,
+  userId: string,
+  tenantId: string,
+  contactId: string
+): Promise<void> {
+  await tagContactByName(db, {
+    userId,
+    tenantId,
+    contactId,
+    name: LEAD_TAG_NAME,
+    color: LEAD_TAG_COLOR,
+  });
 }
 
 export async function saveLead(input: SaveLeadInput): Promise<void> {

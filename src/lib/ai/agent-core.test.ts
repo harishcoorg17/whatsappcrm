@@ -7,6 +7,7 @@ import {
   MAX_LEAD_VALUE_CHARS,
   MAX_REPLY_CHARS,
   parseAgentDecision,
+  parsePartnerType,
   parseLead,
   shouldAnswer,
   toChatMessages,
@@ -307,5 +308,68 @@ describe('buildSystemPrompt lead capture', () => {
       '"lead"'
     );
     expect(buildSystemPrompt(base)).not.toContain('"lead"');
+  });
+});
+
+describe('partner detection', () => {
+  const base = { businessName: 'Amstago', instructions: null, knowledge: null };
+
+  it('reads which kind of partner the model saw', () => {
+    expect(
+      parseAgentDecision(
+        '{"action":"reply","text":"Thanks, we will review.","sender":"hotel"}'
+      )
+    ).toEqual({ type: 'reply', text: 'Thanks, we will review.', partner: 'hotel' });
+    expect(
+      parseAgentDecision('{"action":"handoff","reason":"rate query","sender":"DMC"}')
+    ).toEqual({ type: 'handoff', reason: 'rate query', partner: 'dmc' });
+  });
+
+  it('treats "customer", unknown or missing senders as no partner', () => {
+    for (const sender of ['customer', 'alien', 5, undefined]) {
+      const decision = parseAgentDecision(
+        JSON.stringify({ action: 'reply', text: 'Hi', sender })
+      );
+      expect(decision).toEqual({ type: 'reply', text: 'Hi' });
+    }
+    expect(parsePartnerType(' Transport ')).toBe('transport');
+    expect(parsePartnerType('customer')).toBeUndefined();
+  });
+
+  it('drops trip details when the sender is a partner', () => {
+    const decision = parseAgentDecision(
+      '{"action":"reply","text":"Noted","sender":"dmc","lead":{"destination":"Goa"}}'
+    );
+    expect(decision).toEqual({ type: 'reply', text: 'Noted', partner: 'dmc' });
+  });
+
+  it('keeps trip details for customers', () => {
+    const decision = parseAgentDecision(
+      '{"action":"reply","text":"Nice","sender":"customer","lead":{"destination":"Goa"}}'
+    );
+    expect(decision).toEqual({
+      type: 'reply',
+      text: 'Nice',
+      lead: { destination: 'Goa' },
+    });
+  });
+
+  it('tells the model partners exist and asks for the sender in the answer', () => {
+    const prompt = buildSystemPrompt(base);
+    expect(prompt).toContain('DMCs (ground tour operators), hotels');
+    expect(prompt).toContain('"sender"');
+    expect(prompt).toContain('Never accept, reject, negotiate or confirm');
+    expect(prompt).toContain('If it is not clear, treat the person as a customer.');
+  });
+
+  it('states a known partner type instead of guessing', () => {
+    const prompt = buildSystemPrompt({ ...base, knownPartner: 'hotel' });
+    expect(prompt).toContain('already identified as a hotel');
+    expect(prompt).not.toContain('If it is not clear, treat the person as a customer.');
+  });
+
+  it('keeps trip-detail capture out of partner chats', () => {
+    const prompt = buildSystemPrompt({ ...base, leadCapture: true });
+    expect(prompt).toContain('customers only, never for partners');
   });
 });

@@ -13,6 +13,7 @@ import {
   type HistoryMessage,
 } from './agent-core';
 import { saveLead } from './lead';
+import { loadPartnerType, savePartnerType } from './partner';
 import { loadTourKnowledge } from './tour-facts';
 import {
   callProvider,
@@ -315,8 +316,16 @@ export async function runAiAgent(
     }
 
     const history = await loadHistory(input.db, input.conversationId);
+    // A DMC, hotel or transport vendor already identified on an earlier message.
+    const knownPartner = await loadPartnerType(
+      input.db,
+      input.userId,
+      input.contactId
+    );
     // A customer who came from a tour page gets answers about that tour.
-    const tourFacts = await loadTourKnowledge({
+    const tourFacts = knownPartner
+      ? ''
+      : await loadTourKnowledge({
       db: input.db,
       conversationId: input.conversationId,
       customerTexts: [
@@ -350,7 +359,8 @@ export async function runAiAgent(
         knowledge: [config.ai_knowledge, tourFacts]
           .filter((part) => part?.trim())
           .join('\n\n'),
-        leadCapture: !!config.ai_lead_capture,
+        leadCapture: !!config.ai_lead_capture && !knownPartner,
+        knownPartner,
       }),
       messages,
     });
@@ -364,7 +374,20 @@ export async function runAiAgent(
         transcript
       );
     }
-    if (config.ai_lead_capture && decision.lead) {
+    const partner = decision.partner ?? knownPartner;
+    if (decision.partner && decision.partner !== knownPartner) {
+      await savePartnerType({
+        db: input.db,
+        userId: input.userId,
+        tenantId: input.tenantId,
+        contactId: input.contactId,
+        type: decision.partner,
+      });
+      console.log(
+        `[ai-agent] contact ${input.contactId} identified as ${decision.partner}`
+      );
+    }
+    if (config.ai_lead_capture && decision.lead && !partner) {
       await saveLead({
         db: input.db,
         userId: input.userId,

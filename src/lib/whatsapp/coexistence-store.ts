@@ -20,7 +20,13 @@ import { phonesMatch } from './phone-utils';
 interface Target {
   tenantId: string;
   ownerUserId: string;
+  /** The number the event arrived on: conversations are kept per number. */
+  phoneNumberId: string;
 }
+
+// Postgres "undefined_column": conversations.phone_number_id comes from
+// migration 028. Without it there is one conversation per contact.
+const UNDEFINED_COLUMN = '42703';
 
 interface ContactRow {
   id: string;
@@ -60,7 +66,11 @@ async function resolveTarget(
   // only the primary one is mirrored on crm_tenants.
   const route = await resolveTenantRoute(db, phoneNumberId);
   if (!route?.ownerUserId) return null;
-  return { tenantId: route.tenantId, ownerUserId: route.ownerUserId };
+  return {
+    tenantId: route.tenantId,
+    ownerUserId: route.ownerUserId,
+    phoneNumberId,
+  };
 }
 
 /** The tenant's contacts, loaded once per webhook and kept up to date. */
@@ -127,22 +137,54 @@ async function ensureConversation(
   target: Target,
   contactId: string
 ): Promise<ConversationRow | null> {
-  const { data: existing } = await db
-    .from('conversations')
-    .select('id, last_message_at')
-    .eq('user_id', target.ownerUserId)
-    .eq('contact_id', contactId)
-    .eq('tenant_id', target.tenantId)
-    .maybeSingle();
-  if (existing) return existing as ConversationRow;
+  const base = () =>
+    db
+      .from('conversations')
+      .select('id, last_message_at')
+      .eq('user_id', target.ownerUserId)
+      .eq('contact_id', contactId)
+      .eq('tenant_id', target.tenantId);
 
+  // Same rule as inbound messages: a contact has one conversation per number,
+  // so a message sent from the phone must land in the chat for that number.
+  let numberScoped = true;
+  const onNumber = await base()
+    .eq('phone_number_id', target.phoneNumberId)
+    .limit(1)
+    .maybeSingle();
+  if (onNumber.error?.code === UNDEFINED_COLUMN) {
+    numberScoped = false;
+  } else if (onNumber.data) {
+    return onNumber.data as ConversationRow;
+  }
+
+  if (numberScoped) {
+    // An older conversation that never recorded its number belongs to this one.
+    const unassigned = await base().is('phone_number_id', null).limit(1).maybeSingle();
+    if (unassigned.data) {
+      const row = unassigned.data as ConversationRow;
+      await db
+        .from('conversations')
+        .update({ phone_number_id: target.phoneNumberId })
+        .eq('id', row.id);
+      return row;
+    }
+  } else {
+    const any = await base().limit(1).maybeSingle();
+    if (any.data) return any.data as ConversationRow;
+  }
+
+  const insertRow = {
+    user_id: target.ownerUserId,
+    contact_id: contactId,
+    tenant_id: target.tenantId,
+  };
+  const row: Record<string, unknown> = numberScoped
+    ? { ...insertRow, phone_number_id: target.phoneNumberId }
+    : insertRow;
   const { data, error } = await db
     .from('conversations')
-    .insert({
-      user_id: target.ownerUserId,
-      contact_id: contactId,
-      tenant_id: target.tenantId,
-    })
+    .insert(row)
     .select('id, last_message_at')
     .single();
   if (error || !data) {
