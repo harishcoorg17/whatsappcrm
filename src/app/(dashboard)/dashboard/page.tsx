@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import {
   MessageSquare,
   UserPlus,
-  DollarSign,
+  IndianRupee,
   Send,
 } from 'lucide-react'
 
@@ -31,6 +31,7 @@ import { ConversationsChart } from '@/components/dashboard/conversations-chart'
 import { PipelineDonut } from '@/components/dashboard/pipeline-donut'
 import { ResponseTimeChart } from '@/components/dashboard/response-time-chart'
 import { ActivityFeed } from '@/components/dashboard/activity-feed'
+import { formatMoney } from '@/lib/currency'
 
 type RangeDays = 7 | 30 | 90
 
@@ -178,7 +179,7 @@ export default function DashboardPage() {
             <MetricCard
               title="Open Deals Value"
               value={formatCurrency(metrics.openDealsValue)}
-              icon={DollarSign}
+              icon={IndianRupee}
               subtitle={`${metrics.openDealsCount} open deal${metrics.openDealsCount === 1 ? '' : 's'}`}
             />
             <MetricCard
@@ -234,12 +235,7 @@ export default function DashboardPage() {
 // ------------------------------------------------------------
 
 function formatCurrency(v: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(v)
+  return formatMoney(v)
 }
 
 function deltaLabel(delta: number, suffix: string): string {

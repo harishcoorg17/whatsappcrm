@@ -11,7 +11,7 @@ import {
   Check,
   User,
   Tag as TagIcon,
-  DollarSign,
+  IndianRupee,
   StickyNote,
   Plus,
 } from 'lucide-react';
@@ -20,6 +20,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { ConsentControl } from './consent-control';
 import { AdSourceCard } from './ad-source';
+import { formatMoney } from '@/lib/currency'
 
 interface ContactSidebarProps {
   contact: Contact | null;
@@ -216,7 +217,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
           {/* Active Deals */}
           <div>
             <div className="flex items-center gap-2 px-1 text-xs font-medium tracking-wider text-slate-500 uppercase">
-              <DollarSign className="h-3 w-3" />
+              <IndianRupee className="h-3 w-3" />
               Active Deals
             </div>
             <div className="mt-2 space-y-2">
@@ -233,8 +234,7 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
                     </p>
                     <div className="mt-1 flex items-center justify-between text-xs text-slate-400">
                       <span>
-                        {deal.currency ?? '$'}
-                        {deal.value.toLocaleString()}
+                        {formatMoney(deal.value, deal.currency)}
                       </span>
                       {deal.stage && (
                         <span

@@ -18,6 +18,7 @@ import type { Deal, PipelineStage } from "@/types";
 import { DealCard } from "./deal-card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { formatMoney } from '@/lib/currency'
 
 interface PipelineBoardProps {
   stages: PipelineStage[];
@@ -28,12 +29,7 @@ interface PipelineBoardProps {
 }
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  return formatMoney(value);
 }
 
 export function PipelineBoard({
