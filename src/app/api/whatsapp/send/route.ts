@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
 import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
+import { canActOnConversation } from '@/lib/tenants/conversation-access';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import {
   sanitizePhoneForMeta,
@@ -84,6 +85,15 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Conversation not found' },
         { status: 404 }
+      );
+    }
+
+    // Seeing a chat is not the right to speak in it: platform admins can read
+    // every tenant's conversations but must not send as that tenant.
+    if (!(await canActOnConversation(supabase, user.id, conversation))) {
+      return NextResponse.json(
+        { error: 'You are not allowed to send in this conversation' },
+        { status: 403 }
       );
     }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { createClient } from '@/lib/supabase/server';
 import { requestCsat } from '@/lib/csat/csat-server';
+import { canActOnConversation } from '@/lib/tenants/conversation-access';
 
 /**
  * POST /api/conversations/[id]/csat
@@ -27,11 +28,18 @@ export async function POST(_request: NextRequest, context: Context) {
     // Row level security: only someone who can see the chat may survey it.
     const { data: visible } = await supabase
       .from('conversations')
-      .select('id, status')
+      .select('id, status, user_id, tenant_id')
       .eq('id', id)
       .maybeSingle();
     if (!visible) {
-      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Conversation not found' },
+        { status: 404 }
+      );
+    }
+    // Platform admins can read every chat but must not survey as the tenant.
+    if (!(await canActOnConversation(supabase, user.id, visible))) {
+      return NextResponse.json({ error: 'Not allowed' }, { status: 403 });
     }
     if (visible.status !== 'closed') {
       return NextResponse.json({ sent: false, outcome: 'not_closed' });
@@ -41,6 +49,9 @@ export async function POST(_request: NextRequest, context: Context) {
     return NextResponse.json({ sent: outcome === 'sent', outcome });
   } catch (error) {
     console.error('[conversations/csat] unexpected error:', error);
-    return NextResponse.json({ error: 'Could not send the survey' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Could not send the survey' },
+      { status: 500 }
+    );
   }
 }

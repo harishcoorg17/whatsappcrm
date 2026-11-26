@@ -40,7 +40,7 @@ async function loadGroup(
     id: string;
     kind: GroupKind;
     name: string;
-    invite_url: string;
+    invite_url: string | null;
     is_active: boolean;
   } | null) ?? null;
 }
@@ -84,6 +84,9 @@ export async function POST(request: NextRequest, context: Context) {
 
     const group = await loadGroup(auth.db, auth.tenant.id, id);
     if (!group) return problem('Group not found', 404).response;
+    if (!group.invite_url) {
+      return problem('Add the WhatsApp invite link to this group before sending invites', 400).response;
+    }
     if (!auth.tenant.owner_user_id) {
       return problem('This workspace has no owner to send from', 400).response;
     }
@@ -106,7 +109,7 @@ export async function POST(request: NextRequest, context: Context) {
     const result = await sendGroupInvites(auth.db, {
       tenantId: auth.tenant.id,
       ownerUserId: auth.tenant.owner_user_id,
-      group,
+      group: { ...group, invite_url: group.invite_url },
       contactIds,
       tagId,
       templateName,

@@ -126,6 +126,9 @@ export default function GroupsPage() {
                 <TableCell>
                   <p className="font-medium text-slate-100">{g.name}</p>
                   {!g.is_active && <span className="text-xs text-slate-500">Inactive</span>}
+                  {!g.invite_url && (
+                    <span className="text-xs text-amber-400">Needs invite link. Edit to add it.</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant={g.kind === 'channel' ? 'secondary' : 'default'}>
@@ -154,7 +157,8 @@ export default function GroupsPage() {
                       size="icon"
                       variant="ghost"
                       aria-label="Copy link"
-                      onClick={() => void copy(g.invite_url)}
+                      disabled={!g.invite_url}
+                      onClick={() => g.invite_url && void copy(g.invite_url)}
                     >
                       <Copy className="size-4" />
                     </Button>
@@ -162,7 +166,7 @@ export default function GroupsPage() {
                       size="icon"
                       variant="ghost"
                       aria-label="Send invite"
-                      disabled={!g.is_active}
+                      disabled={!g.is_active || !g.invite_url}
                       onClick={() => setDialog({ type: 'send', group: g })}
                     >
                       <Send className="size-4" />

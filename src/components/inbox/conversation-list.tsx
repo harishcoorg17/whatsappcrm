@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useTenant } from '@/hooks/use-tenant';
+import { useDataScope } from '@/hooks/use-data-scope';
 import {
   numberDisplayName,
   useTenantNumbers,
@@ -59,6 +60,9 @@ export function ConversationList({
   const [filter, setFilter] = useState<ConversationStatus | 'all'>('all');
   const [loading, setLoading] = useState(true);
   const { selectedTenantId } = useTenant();
+  // A platform admin with no tenant picked sees only their own chats, not
+  // every tenant's chats mixed together.
+  const { ownUserId } = useDataScope();
 
   // A tenant can have several WhatsApp numbers. Label chats with their number
   // and let the user filter by it, but only for tenants that have 2+ numbers.
@@ -121,6 +125,8 @@ export function ConversationList({
 
       if (selectedTenantId) {
         query = query.eq('tenant_id', selectedTenantId);
+      } else if (ownUserId) {
+        query = query.eq('user_id', ownUserId);
       }
 
       const { data, error } = await query;
@@ -148,7 +154,7 @@ export function ConversationList({
     };
     // `resyncToken` forces a refetch on reconnect; `selectedTenantId`
     // refetches when the user switches tenants.
-  }, [resyncToken, selectedTenantId]);
+  }, [resyncToken, selectedTenantId, ownUserId]);
 
   const filtered = useMemo(() => {
     let result = conversations;

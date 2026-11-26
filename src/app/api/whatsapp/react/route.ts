@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { sendReactionMessage } from '@/lib/whatsapp/meta-api';
 import { loadCredentialsForConversation } from '@/lib/whatsapp/credentials';
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils';
+import { canActOnConversation } from '@/lib/tenants/conversation-access';
 import {
   checkRateLimit,
   rateLimitResponse,
@@ -74,7 +75,7 @@ export async function POST(request: Request) {
 
     const { data: conversation, error: convError } = await supabase
       .from('conversations')
-      .select('id, user_id, contact:contacts(phone)')
+      .select('id, user_id, tenant_id, contact:contacts(phone)')
       .eq('id', targetMessage.conversation_id)
       .maybeSingle();
 
@@ -82,6 +83,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Conversation not found' },
         { status: 404 }
+      );
+    }
+
+    // Platform admins can read every chat but must not react as the tenant.
+    if (!(await canActOnConversation(supabase, user.id, conversation))) {
+      return NextResponse.json(
+        { error: 'You are not allowed to react in this conversation' },
+        { status: 403 }
       );
     }
 

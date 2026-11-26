@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -140,6 +141,16 @@ function getValidatedName(input: string): string {
 export function TemplateManager() {
   const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
+  const { isPlatformAdmin, selectedTenant } = useTenant();
+  // A platform admin looking at another tenant's templates: read-only, and
+  // the rows come from that tenant's owner instead of the signed-in user.
+  const viewedOwnerId =
+    isPlatformAdmin &&
+    selectedTenant?.owner_user_id &&
+    selectedTenant.owner_user_id !== user?.id
+      ? selectedTenant.owner_user_id
+      : null;
+  const isViewOnly = viewedOwnerId !== null;
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -194,9 +205,9 @@ export function TemplateManager() {
       setLoading(false);
       return;
     }
-    fetchTemplates(user.id);
+    fetchTemplates(viewedOwnerId ?? user.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, viewedOwnerId]);
 
   async function fetchTemplates(userId: string) {
     try {
@@ -634,7 +645,15 @@ export function TemplateManager() {
             &quot;Sync from Meta&quot; to pull templates approved elsewhere.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        {isViewOnly && (
+          <p className="w-full rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            Viewing {selectedTenant?.name}&apos;s templates as a platform admin.
+            Read-only: switch back to your own tenant to make changes.
+          </p>
+        )}
+        <div
+          className={`flex items-center gap-2 ${isViewOnly ? 'hidden' : ''}`}
+        >
           <Button
             variant="outline"
             onClick={handleSyncFromMeta}
@@ -727,7 +746,9 @@ export function TemplateManager() {
                       </div>
                     )}
                   </div>
-                  <div className="ml-2 flex shrink-0 items-center gap-1">
+                  <div
+                    className={`ml-2 flex shrink-0 items-center gap-1 ${isViewOnly ? 'hidden' : ''}`}
+                  >
                     {template.name.toLowerCase().startsWith('sample_') ? (
                       <Button
                         variant="ghost"

@@ -4,6 +4,7 @@ import { AdSourceBadge } from './ad-source';
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
+import { useDataScope } from '@/hooks/use-data-scope';
 import { cn } from '@/lib/utils';
 import type {
   Conversation,
@@ -150,6 +151,8 @@ export function MessageThread({
   onRefresh,
 }: MessageThreadProps) {
   const { user } = useAuth();
+  // A platform admin reading another tenant's chat: no composer.
+  const dataScope = useDataScope();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -991,17 +994,24 @@ export function MessageThread({
       </div>
 
       {/* Composer */}
-      <MessageComposer
-        conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
-        onSend={handleSend}
-        onOpenTemplates={handleOpenTemplates}
-        replyTo={replyTo}
-        onClearReply={() => setReplyTo(null)}
-        tenantId={conversation.tenant_id}
-        contactName={contact.name}
-        contactPhone={contact.phone}
-      />
+      {dataScope.isViewOnly ? (
+        <p className="border-t border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-xs text-amber-300">
+          Viewing {dataScope.tenantName}&apos;s chat as a platform admin.
+          Read-only: you cannot send messages here.
+        </p>
+      ) : (
+        <MessageComposer
+          conversationId={conversation.id}
+          sessionExpired={sessionInfo.expired}
+          onSend={handleSend}
+          onOpenTemplates={handleOpenTemplates}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+          tenantId={conversation.tenant_id}
+          contactName={contact.name}
+          contactPhone={contact.phone}
+        />
+      )}
 
       <TemplatePicker
         open={templateModalOpen}

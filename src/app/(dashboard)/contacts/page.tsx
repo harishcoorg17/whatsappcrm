@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { applyDataScope, useDataScope } from '@/hooks/use-data-scope';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag } from '@/types';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,7 @@ interface ContactWithTags extends Contact {
 
 export default function ContactsPage() {
   const supabase = createClient();
+  const scope = useDataScope();
 
   const [contacts, setContacts] = useState<ContactWithTags[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,11 +92,14 @@ export default function ContactsPage() {
     const from = page * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    let query = supabase
-      .from('contacts')
-      .select('*', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(from, to);
+    let query = applyDataScope(
+      supabase
+        .from('contacts')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to),
+      scope
+    );
 
     if (search.trim()) {
       const term = `%${search.trim()}%`;
@@ -125,7 +130,7 @@ export default function ContactsPage() {
 
     setContacts(enriched);
     setLoading(false);
-  }, [supabase, page, search, tagsMap]);
+  }, [supabase, page, search, tagsMap, scope]);
 
   // Load-once-on-mount-ish data fetches. Each setter inside runs
   // inside an async promise completion (Supabase await), not
@@ -194,25 +199,27 @@ export default function ContactsPage() {
       {/* Header */}
       <PageHeader
         title="Contacts"
-        description={`Manage your audience database.${totalCount > 0 ? ` ${totalCount} total contacts.` : ''}`}
+        description={`${scope.isViewOnly ? `Viewing ${scope.tenantName}'s contacts as a platform admin (read-only).` : 'Manage your audience database.'}${totalCount > 0 ? ` ${totalCount} total contacts.` : ''}`}
         actions={
-          <>
-            <Button
-              variant="outline"
-              onClick={() => setImportOpen(true)}
-              className="border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white"
-            >
-              <Upload className="size-4" />
-              Import CSV
-            </Button>
-            <Button
-              onClick={openAddForm}
-              className="from-primary to-brand-hover bg-gradient-to-r font-semibold text-white shadow-lg shadow-primary/25 transition-transform hover:scale-[1.02]"
-            >
-              <Plus className="size-4" />
-              Add Contact
-            </Button>
-          </>
+          scope.isViewOnly ? null : (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setImportOpen(true)}
+                className="border-slate-700 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:text-white"
+              >
+                <Upload className="size-4" />
+                Import CSV
+              </Button>
+              <Button
+                onClick={openAddForm}
+                className="from-primary to-brand-hover shadow-primary/25 bg-gradient-to-r font-semibold text-white shadow-lg transition-transform hover:scale-[1.02]"
+              >
+                <Plus className="size-4" />
+                Add Contact
+              </Button>
+            </>
+          )
         }
       />
 
@@ -344,46 +351,48 @@ export default function ContactsPage() {
                     })}
                   </TableCell>
                   <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger
-                        render={
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-slate-400 hover:text-white"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        }
-                      >
-                        <MoreHorizontal className="size-4" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="border-slate-700 bg-slate-900"
-                      >
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openEditForm(contact);
-                          }}
-                          className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                    {!scope.isViewOnly && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-slate-400 hover:text-white"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          }
                         >
-                          <Pencil className="size-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator className="bg-slate-700" />
-                        <DropdownMenuItem
-                          variant="destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            confirmDelete(contact);
-                          }}
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="border-slate-700 bg-slate-900"
                         >
-                          <Trash2 className="size-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEditForm(contact);
+                            }}
+                            className="text-slate-300 focus:bg-slate-800 focus:text-white"
+                          >
+                            <Pencil className="size-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator className="bg-slate-700" />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              confirmDelete(contact);
+                            }}
+                          >
+                            <Trash2 className="size-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </TableCell>
                 </TableRow>
               ))

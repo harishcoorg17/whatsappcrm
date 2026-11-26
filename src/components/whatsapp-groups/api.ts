@@ -4,7 +4,7 @@ export interface GroupRow {
   id: string;
   kind: GroupKind;
   name: string;
-  invite_url: string;
+  invite_url: string | null;
   description: string | null;
   capacity: number | null;
   departure_date: string | null;

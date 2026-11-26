@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { applyDataScope, useDataScope } from '@/hooks/use-data-scope';
 import type { Pipeline, PipelineStage, Deal } from '@/types';
 import { PipelineBoard } from '@/components/pipelines/pipeline-board';
 import { PipelineSettings } from '@/components/pipelines/pipeline-settings';
@@ -38,6 +39,8 @@ const SPEC_DEFAULT_STAGES = [
 
 export default function PipelinesPage() {
   const supabase = createClient();
+  const scope = useDataScope();
+  const isViewOnly = scope.isViewOnly;
 
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string>('');
@@ -61,16 +64,16 @@ export default function PipelinesPage() {
   const seedAttempted = useRef(false);
 
   const loadPipelines = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('pipelines')
-      .select('*')
-      .order('created_at');
+    const { data, error } = await applyDataScope(
+      supabase.from('pipelines').select('*').order('created_at'),
+      scope
+    );
     if (error) {
       console.error('Failed to load pipelines:', error.message);
       return [];
     }
     return data ?? [];
-  }, [supabase]);
+  }, [supabase, scope]);
 
   const loadStages = useCallback(
     async (pipelineId: string) => {
@@ -133,7 +136,8 @@ export default function PipelinesPage() {
       setLoading(true);
       let list = await loadPipelines();
 
-      if (list.length === 0 && !seedAttempted.current) {
+      // Never seed a default pipeline while looking at someone else's tenant.
+      if (list.length === 0 && !seedAttempted.current && !isViewOnly) {
         seedAttempted.current = true;
         const seeded = await seedDefaultPipeline();
         if (seeded) list = await loadPipelines();
@@ -153,7 +157,7 @@ export default function PipelinesPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadPipelines, seedDefaultPipeline]);
+  }, [loadPipelines, seedDefaultPipeline, isViewOnly]);
 
   // Load stages + deals whenever selected pipeline changes.
   // Clearing on no-selection is a legitimate sync with URL/prop
@@ -202,6 +206,10 @@ export default function PipelinesPage() {
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
+      if (isViewOnly) {
+        refreshDeals();
+        return;
+      }
       // Optimistic update — board already animated; just persist.
       setDeals((prev) =>
         prev.map((d) => (d.id === dealId ? { ...d, stage_id: newStageId } : d))
@@ -215,23 +223,28 @@ export default function PipelinesPage() {
         refreshDeals();
       }
     },
-    [supabase, refreshDeals]
+    [supabase, refreshDeals, isViewOnly]
   );
 
   const handleAddDeal = useCallback(
     (stageId?: string) => {
+      if (isViewOnly) return;
       setEditingDeal(null);
       setDefaultStageId(stageId ?? stages[0]?.id ?? '');
       setDealFormOpen(true);
     },
-    [stages]
+    [stages, isViewOnly]
   );
 
-  const handleEditDeal = useCallback((deal: Deal) => {
-    setEditingDeal(deal);
-    setDefaultStageId(deal.stage_id);
-    setDealFormOpen(true);
-  }, []);
+  const handleEditDeal = useCallback(
+    (deal: Deal) => {
+      if (isViewOnly) return;
+      setEditingDeal(deal);
+      setDefaultStageId(deal.stage_id);
+      setDealFormOpen(true);
+    },
+    [isViewOnly]
+  );
 
   async function handleCreatePipeline() {
     const name = newPipelineName.trim();
@@ -334,7 +347,7 @@ export default function PipelinesPage() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator className="bg-slate-700" />
-              {selectedPipeline && (
+              {selectedPipeline && !isViewOnly && (
                 <DropdownMenuItem
                   onClick={() => setSettingsOpen(true)}
                   className="text-slate-300"
@@ -347,7 +360,16 @@ export default function PipelinesPage() {
           </DropdownMenu>
         </div>
 
-        <div className="flex items-center gap-2">
+        {isViewOnly && (
+          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            Viewing {scope.tenantName}&apos;s pipelines as a platform admin.
+            Read-only.
+          </p>
+        )}
+
+        <div
+          className={`flex items-center gap-2 ${isViewOnly ? 'hidden' : ''}`}
+        >
           <Button
             variant="outline"
             onClick={() => setNewPipelineOpen(true)}
@@ -377,13 +399,15 @@ export default function PipelinesPage() {
           <p className="mt-2 text-sm text-slate-400">
             Create a pipeline to start tracking deals
           </p>
-          <Button
-            onClick={() => setNewPipelineOpen(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4"
-          >
-            <Plus className="mr-1 h-4 w-4" />
-            Create Pipeline
-          </Button>
+          {!isViewOnly && (
+            <Button
+              onClick={() => setNewPipelineOpen(true)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Create Pipeline
+            </Button>
+          )}
         </div>
       ) : (
         <>
