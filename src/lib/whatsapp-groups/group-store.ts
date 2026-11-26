@@ -16,6 +16,7 @@ export interface GroupRow {
   creation_status: CreationStatus;
   wa_request_id: string | null;
   wa_group_id: string | null;
+  wa_phone_number_id: string | null;
 }
 
 export interface GroupPatch {
@@ -24,23 +25,34 @@ export interface GroupPatch {
   creation_error?: string | null;
   wa_request_id?: string | null;
   wa_group_id?: string | null;
+  wa_phone_number_id?: string | null;
 }
 
 export interface GroupStore {
   /** The group a Meta webhook belongs to, matched by request id first, then group id. */
-  findByWa(ref: { requestId?: string | null; groupId?: string | null }): Promise<GroupRow | null>;
+  findByWa(ref: {
+    requestId?: string | null;
+    groupId?: string | null;
+  }): Promise<GroupRow | null>;
   update(id: string, patch: GroupPatch): Promise<boolean>;
   /** Marks already-invited people as joined or left. Returns how many invites changed. */
-  setInviteStatus(group: GroupRow, waIds: string[], status: 'joined' | 'left'): Promise<number>;
+  setInviteStatus(
+    group: GroupRow,
+    waIds: string[],
+    status: 'joined' | 'left'
+  ): Promise<number>;
 }
 
 export const GROUP_COLUMNS =
-  'id, tenant_id, name, description, invite_url, creation_status, wa_request_id, wa_group_id';
+  'id, tenant_id, name, description, invite_url, creation_status, wa_request_id, wa_group_id, wa_phone_number_id';
 
 const phoneVariants = (waId: string) => [waId, `+${waId}`];
 
 export function supabaseGroupStore(db: SupabaseClient): GroupStore {
-  const find = async (column: 'wa_request_id' | 'wa_group_id', value: string) => {
+  const find = async (
+    column: 'wa_request_id' | 'wa_group_id',
+    value: string
+  ) => {
     const { data } = await db
       .from('whatsapp_groups')
       .select(GROUP_COLUMNS)
@@ -59,7 +71,10 @@ export function supabaseGroupStore(db: SupabaseClient): GroupStore {
     },
 
     async update(id, patch) {
-      const { error } = await db.from('whatsapp_groups').update(patch).eq('id', id);
+      const { error } = await db
+        .from('whatsapp_groups')
+        .update(patch)
+        .eq('id', id);
       if (error) console.error('[groups] update failed:', error.message);
       return !error;
     },
@@ -71,7 +86,8 @@ export function supabaseGroupStore(db: SupabaseClient): GroupStore {
         .select('owner_user_id')
         .eq('id', group.tenant_id)
         .maybeSingle();
-      const ownerId = (tenant as { owner_user_id: string | null } | null)?.owner_user_id;
+      const ownerId = (tenant as { owner_user_id: string | null } | null)
+        ?.owner_user_id;
       if (!ownerId) return 0;
 
       const { data: contacts } = await db
@@ -79,7 +95,9 @@ export function supabaseGroupStore(db: SupabaseClient): GroupStore {
         .select('id')
         .eq('user_id', ownerId)
         .in('phone', waIds.flatMap(phoneVariants));
-      const contactIds = ((contacts ?? []) as Array<{ id: string }>).map((c) => c.id);
+      const contactIds = ((contacts ?? []) as Array<{ id: string }>).map(
+        (c) => c.id
+      );
       if (contactIds.length === 0) return 0;
 
       const { data: changed } = await db

@@ -15,7 +15,10 @@ const REQUEST_TIMEOUT_MS = 15_000;
 export type JoinApprovalMode = 'auto_approve' | 'approval_required';
 
 export class MetaGroupsError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number
+  ) {
     super(message);
     this.name = 'MetaGroupsError';
   }
@@ -42,8 +45,11 @@ function metaMessage(data: unknown, fallback: string): string {
   const error = (data as { error?: Record<string, unknown> } | null)?.error;
   if (!error) return fallback;
   const errorData = error.error_data as { details?: unknown } | undefined;
-  const parts = [error.error_user_msg, errorData?.details, error.message]
-    .filter((p): p is string => typeof p === 'string' && p.length > 0);
+  const parts = [
+    error.error_user_msg,
+    errorData?.details,
+    error.message,
+  ].filter((p): p is string => typeof p === 'string' && p.length > 0);
   return parts[0] ?? fallback;
 }
 
@@ -105,14 +111,16 @@ export async function createWhatsAppGroup(
     fetchImpl
   );
 
-  const text = (value: unknown) => (typeof value === 'string' && value ? value : null);
+  const text = (value: unknown) =>
+    typeof value === 'string' && value ? value : null;
   return {
     requestId: text(data.request_id),
     groupId: text(data.id) ?? text(data.group_id),
   };
 }
 
-export const INVITE_LINK_PATTERN = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/;
+export const INVITE_LINK_PATTERN =
+  /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/;
 
 /** The group's current invite link, or null if Meta returns none. */
 export async function getGroupInviteLink(
@@ -126,5 +134,7 @@ export async function getGroupInviteLink(
     fetchImpl
   );
   const link = data.invite_link;
-  return typeof link === 'string' && INVITE_LINK_PATTERN.test(link) ? link : null;
+  return typeof link === 'string' && INVITE_LINK_PATTERN.test(link)
+    ? link
+    : null;
 }

@@ -212,3 +212,36 @@ export async function loadWhatsAppCredentials(
   if (fromTenant) return fromTenant;
   return loadLegacyCredentials(supabase, userId);
 }
+
+/**
+ * The numbers allowed to create WhatsApp groups, in the order to try them: the
+ * tenant's primary number, then any other number marked `use_for_groups`.
+ * Other numbers (for example a tour leader's) are never used. Only some numbers
+ * are eligible for the Groups API, so creation tries each in turn.
+ */
+export async function loadTenantNumberCredentials(
+  supabase: SupabaseClient,
+  userId: string,
+  tenantId: string
+): Promise<WhatsAppCredentials[]> {
+  const found: WhatsAppCredentials[] = [];
+  const primary = await loadWhatsAppCredentials(supabase, userId, tenantId);
+  if (primary) found.push(primary);
+
+  // If migration 060 is not applied the column is missing, the query errors and
+  // only the primary number is used.
+  const { data } = await supabase
+    .from('crm_tenant_numbers')
+    .select('phone_number_id')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'active')
+    .eq('use_for_groups', true)
+    .order('created_at', { ascending: true });
+
+  for (const row of (data ?? []) as Array<{ phone_number_id: string }>) {
+    if (found.some((c) => c.phoneNumberId === row.phone_number_id)) continue;
+    const creds = await loadNumberCredentials(supabase, tenantId, row.phone_number_id);
+    if (creds) found.push(creds);
+  }
+  return found;
+}

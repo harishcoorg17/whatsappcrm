@@ -21,28 +21,47 @@ export function isGroupWebhookField(field: string): boolean {
 }
 
 export type GroupEvent =
-  | { kind: 'created'; groupId: string | null; requestId: string | null; inviteLink: string | null }
-  | { kind: 'create_failed'; groupId: string | null; requestId: string | null; error: string }
+  | {
+      kind: 'created';
+      groupId: string | null;
+      requestId: string | null;
+      inviteLink: string | null;
+    }
+  | {
+      kind: 'create_failed';
+      groupId: string | null;
+      requestId: string | null;
+      error: string;
+    }
   | { kind: 'joined'; groupId: string; waIds: string[] }
   | { kind: 'left'; groupId: string; waIds: string[] };
 
 type Obj = Record<string, unknown>;
-const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
-const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+const isObj = (v: unknown): v is Obj =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v: unknown): string | null =>
+  typeof v === 'string' && v ? v : null;
 
 const MAX_ERROR_LENGTH = 500;
 
 function errorText(errors: unknown): string {
   const first = Array.isArray(errors) ? errors[0] : null;
   if (!isObj(first)) return 'WhatsApp could not create the group.';
-  const details = isObj(first.error_data) ? str(first.error_data.details) : null;
+  const details = isObj(first.error_data)
+    ? str(first.error_data.details)
+    : null;
   const text = details ?? str(first.message) ?? str(first.title);
-  return (text ?? 'WhatsApp could not create the group.').slice(0, MAX_ERROR_LENGTH);
+  return (text ?? 'WhatsApp could not create the group.').slice(
+    0,
+    MAX_ERROR_LENGTH
+  );
 }
 
 function waIdsOf(list: unknown): string[] {
   if (!Array.isArray(list)) return [];
-  return list.map((p) => (isObj(p) ? str(p.wa_id) : null)).filter((id): id is string => !!id);
+  return list
+    .map((p) => (isObj(p) ? str(p.wa_id) : null))
+    .filter((id): id is string => !!id);
 }
 
 function parseLifecycle(item: Obj): GroupEvent | null {
@@ -50,9 +69,19 @@ function parseLifecycle(item: Obj): GroupEvent | null {
   const groupId = str(item.group_id);
   const requestId = str(item.request_id);
   if (Array.isArray(item.errors) && item.errors.length > 0) {
-    return { kind: 'create_failed', groupId, requestId, error: errorText(item.errors) };
+    return {
+      kind: 'create_failed',
+      groupId,
+      requestId,
+      error: errorText(item.errors),
+    };
   }
-  return { kind: 'created', groupId, requestId, inviteLink: str(item.invite_link) };
+  return {
+    kind: 'created',
+    groupId,
+    requestId,
+    inviteLink: str(item.invite_link),
+  };
 }
 
 function parseParticipants(item: Obj): GroupEvent | null {
@@ -77,11 +106,17 @@ export function parseGroupEvents(field: string, value: unknown): GroupEvent[] {
         ? parseParticipants
         : null;
   if (!parse) return [];
-  return value.groups.filter(isObj).map(parse).filter((e): e is GroupEvent => e !== null);
+  return value.groups
+    .filter(isObj)
+    .map(parse)
+    .filter((e): e is GroupEvent => e !== null);
 }
 
 /** Applies one event. Returns a short outcome for the log; never throws on an unknown group. */
-export async function applyGroupEvent(store: GroupStore, event: GroupEvent): Promise<string> {
+export async function applyGroupEvent(
+  store: GroupStore,
+  event: GroupEvent
+): Promise<string> {
   if (event.kind === 'joined' || event.kind === 'left') {
     const group = await store.findByWa({ groupId: event.groupId });
     if (!group) return 'unknown_group';
@@ -89,18 +124,25 @@ export async function applyGroupEvent(store: GroupStore, event: GroupEvent): Pro
     return `${event.kind}:${changed}`;
   }
 
-  const group = await store.findByWa({ requestId: event.requestId, groupId: event.groupId });
+  const group = await store.findByWa({
+    requestId: event.requestId,
+    groupId: event.groupId,
+  });
   if (!group) return 'unknown_group';
 
   if (event.kind === 'create_failed') {
-    await store.update(group.id, { creation_status: 'failed', creation_error: event.error });
+    await store.update(group.id, {
+      creation_status: 'failed',
+      creation_error: event.error,
+    });
     return 'failed';
   }
 
   if (!event.inviteLink || !INVITE_LINK_PATTERN.test(event.inviteLink)) {
     await store.update(group.id, {
       creation_status: 'failed',
-      creation_error: 'WhatsApp created the group but sent no valid invite link.',
+      creation_error:
+        'WhatsApp created the group but sent no valid invite link.',
     });
     return 'failed_no_link';
   }

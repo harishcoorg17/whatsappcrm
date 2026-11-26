@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeTenantAccess, problem } from '@/lib/tenants/authorize-tenant';
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit';
-import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
+import { loadTenantNumberCredentials } from '@/lib/whatsapp/credentials';
 import { startGroupCreation } from '@/lib/whatsapp-groups/auto-create';
-import { GROUP_COLUMNS, supabaseGroupStore, type GroupRow } from '@/lib/whatsapp-groups/group-store';
+import {
+  GROUP_COLUMNS,
+  supabaseGroupStore,
+  type GroupRow,
+} from '@/lib/whatsapp-groups/group-store';
 
 /**
  * POST /api/tenants/[slug]/whatsapp-groups/[id]/create
@@ -34,11 +38,17 @@ export async function POST(_request: NextRequest, context: Context) {
       .maybeSingle();
     const group = data as (GroupRow & { kind: string }) | null;
     if (!group) return problem('Group not found', 404).response;
-    if (group.kind !== 'group') return problem('Only groups can be created on WhatsApp', 400).response;
+    if (group.kind !== 'group')
+      return problem('Only groups can be created on WhatsApp', 400).response;
 
     const ownerId = auth.tenant.owner_user_id;
-    const credentials = ownerId ? await loadWhatsAppCredentials(auth.db, ownerId, auth.tenant.id) : null;
-    const result = await startGroupCreation(group, { store: supabaseGroupStore(auth.db), credentials });
+    const numbers = ownerId
+      ? await loadTenantNumberCredentials(auth.db, ownerId, auth.tenant.id)
+      : [];
+    const result = await startGroupCreation(group, {
+      store: supabaseGroupStore(auth.db),
+      numbers,
+    });
     if (!result.ok) return problem(result.message, 502).response;
     return NextResponse.json({ status: result.status });
   } catch (error) {

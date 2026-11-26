@@ -6,7 +6,7 @@ import {
   registerPendingGroup,
 } from '@/lib/integrations/group-registry';
 import { checkRateLimit, rateLimitResponse, RATE_LIMITS } from '@/lib/rate-limit';
-import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
+import { loadNumberCredentials, loadTenantNumberCredentials } from '@/lib/whatsapp/credentials';
 import { getGroupInviteLink, INVITE_LINK_PATTERN } from '@/lib/whatsapp/groups-api';
 import { startGroupCreation } from '@/lib/whatsapp-groups/auto-create';
 import { GROUP_COLUMNS, supabaseGroupStore, type GroupRow } from '@/lib/whatsapp-groups/group-store';
@@ -79,7 +79,10 @@ export async function GET(request: Request) {
     let inviteUrl = group.invite_url;
     let status = group.creation_status;
     if (!inviteUrl && status === 'creating' && group.wa_group_id) {
-      const credentials = await loadWhatsAppCredentials(db, auth.ownerUserId, auth.tenantId);
+      // Read the link with the number that created the group.
+      const credentials = group.wa_phone_number_id
+        ? await loadNumberCredentials(db, auth.tenantId, group.wa_phone_number_id)
+        : (await loadTenantNumberCredentials(db, auth.ownerUserId, auth.tenantId))[0] ?? null;
       const link = credentials
         ? await getGroupInviteLink({ groupId: group.wa_group_id, accessToken: credentials.accessToken }).catch(() => null)
         : null;
@@ -131,8 +134,8 @@ export async function POST(request: Request) {
     const store = supabaseGroupStore(db);
     const group = await loadGroup(db, auth.tenantId, result.groupId);
     if (!group) return error('internal_error', 'Could not load the group.', 500);
-    const credentials = await loadWhatsAppCredentials(db, auth.ownerUserId, auth.tenantId);
-    const creation = await startGroupCreation(group, { store, credentials });
+    const numbers = await loadTenantNumberCredentials(db, auth.ownerUserId, auth.tenantId);
+    const creation = await startGroupCreation(group, { store, numbers });
 
     return NextResponse.json(
       {
