@@ -7,6 +7,7 @@ export const WEBHOOK_EVENTS = [
   'message.received',
   'message.sent',
   'contact.created',
+  'group.created',
 ] as const;
 
 export type WebhookEventName = (typeof WEBHOOK_EVENTS)[number];
@@ -17,6 +18,7 @@ export const EVENT_LABELS: Record<WebhookEventName, string> = {
   'message.received': 'A customer sends a message',
   'message.sent': 'An agent sends a message',
   'contact.created': 'A new contact is created',
+  'group.created': 'A WhatsApp group is created for a tour',
 };
 
 export function isWebhookEvent(value: unknown): value is WebhookEventName {

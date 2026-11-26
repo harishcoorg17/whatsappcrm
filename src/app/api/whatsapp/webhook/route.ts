@@ -298,7 +298,20 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       if (isGroupWebhookField(change.field)) {
         const store = supabaseGroupStore(supabaseAdmin());
         for (const event of parseGroupEvents(change.field, change.value)) {
-          const outcome = await applyGroupEvent(store, event);
+          const outcome = await applyGroupEvent(store, event, {
+            // Tell the connected system (Amstago) the group exists and where to join it.
+            onActive: (group, inviteLink) =>
+              emitWebhookEvent(supabaseAdmin(), {
+                tenantId: group.tenant_id,
+                type: 'group.created',
+                data: {
+                  group_id: group.id,
+                  reference: group.external_ref,
+                  name: group.name,
+                  invite_url: inviteLink,
+                },
+              }),
+          });
           console.log('[webhook] group', event.kind, outcome);
         }
         continue;

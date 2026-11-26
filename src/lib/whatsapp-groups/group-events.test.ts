@@ -9,10 +9,18 @@ import type { GroupPatch, GroupRow, GroupStore } from './group-store';
 function memoryStore(rows: GroupRow[]) {
   const invites: Array<{ group: string; waIds: string[]; status: string }> = [];
   const store: GroupStore = {
-    async findByWa({ requestId, groupId }) {
+    async findByWa({ requestId, groupId, subject, phoneNumberId }) {
       return (
         rows.find((r) => requestId && r.wa_request_id === requestId) ??
         rows.find((r) => groupId && r.wa_group_id === groupId) ??
+        rows.find(
+          (r) =>
+            subject &&
+            phoneNumberId &&
+            r.creation_status === 'creating' &&
+            r.wa_phone_number_id === phoneNumberId &&
+            r.name === subject
+        ) ??
         null
       );
     },
@@ -37,6 +45,7 @@ const row = (over: Partial<GroupRow> = {}): GroupRow => ({
   description: null,
   invite_url: null,
   creation_status: 'creating',
+  external_ref: 'tour-1',
   wa_request_id: 'req-1',
   wa_group_id: null,
   wa_phone_number_id: null,

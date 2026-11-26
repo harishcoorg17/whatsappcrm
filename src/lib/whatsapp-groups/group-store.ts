@@ -14,6 +14,8 @@ export interface GroupRow {
   description: string | null;
   invite_url: string | null;
   creation_status: CreationStatus;
+  /** The caller's own id for the group (Amstago sends its tour id here). */
+  external_ref: string | null;
   wa_request_id: string | null;
   wa_group_id: string | null;
   wa_phone_number_id: string | null;
@@ -29,10 +31,15 @@ export interface GroupPatch {
 }
 
 export interface GroupStore {
-  /** The group a Meta webhook belongs to, matched by request id first, then group id. */
+  /**
+   * The group a Meta webhook belongs to, matched by request id, then group id. If Meta's create
+   * response carried neither, the group still `creating` on that number with that name.
+   */
   findByWa(ref: {
     requestId?: string | null;
     groupId?: string | null;
+    subject?: string | null;
+    phoneNumberId?: string | null;
   }): Promise<GroupRow | null>;
   update(id: string, patch: GroupPatch): Promise<boolean>;
   /** Marks already-invited people as joined or left. Returns how many invites changed. */
@@ -44,7 +51,7 @@ export interface GroupStore {
 }
 
 export const GROUP_COLUMNS =
-  'id, tenant_id, name, description, invite_url, creation_status, wa_request_id, wa_group_id, wa_phone_number_id';
+  'id, tenant_id, name, description, invite_url, creation_status, external_ref, wa_request_id, wa_group_id, wa_phone_number_id';
 
 const phoneVariants = (waId: string) => [waId, `+${waId}`];
 
@@ -62,12 +69,26 @@ export function supabaseGroupStore(db: SupabaseClient): GroupStore {
   };
 
   return {
-    async findByWa({ requestId, groupId }) {
+    async findByWa({ requestId, groupId, subject, phoneNumberId }) {
       if (requestId) {
         const byRequest = await find('wa_request_id', requestId);
         if (byRequest) return byRequest;
       }
-      return groupId ? find('wa_group_id', groupId) : null;
+      if (groupId) {
+        const byGroup = await find('wa_group_id', groupId);
+        if (byGroup) return byGroup;
+      }
+      if (!subject || !phoneNumberId) return null;
+      const { data } = await db
+        .from('whatsapp_groups')
+        .select(GROUP_COLUMNS)
+        .eq('creation_status', 'creating')
+        .eq('wa_phone_number_id', phoneNumberId)
+        .eq('name', subject)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return (data as GroupRow | null) ?? null;
     },
 
     async update(id, patch) {

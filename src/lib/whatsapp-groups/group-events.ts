@@ -7,7 +7,7 @@
  */
 
 import { INVITE_LINK_PATTERN } from '@/lib/whatsapp/groups-api';
-import type { GroupStore } from './group-store';
+import type { GroupRow, GroupStore } from './group-store';
 
 export const GROUP_WEBHOOK_FIELDS = [
   'group_lifecycle_update',
@@ -26,12 +26,16 @@ export type GroupEvent =
       groupId: string | null;
       requestId: string | null;
       inviteLink: string | null;
+      subject: string | null;
+      phoneNumberId: string | null;
     }
   | {
       kind: 'create_failed';
       groupId: string | null;
       requestId: string | null;
       error: string;
+      subject: string | null;
+      phoneNumberId: string | null;
     }
   | { kind: 'joined'; groupId: string; waIds: string[] }
   | { kind: 'left'; groupId: string; waIds: string[] };
@@ -64,16 +68,22 @@ function waIdsOf(list: unknown): string[] {
     .filter((id): id is string => !!id);
 }
 
-function parseLifecycle(item: Obj): GroupEvent | null {
+function parseLifecycle(
+  item: Obj,
+  phoneNumberId: string | null
+): GroupEvent | null {
   if (item.type !== 'group_create') return null;
   const groupId = str(item.group_id);
   const requestId = str(item.request_id);
+  const subject = str(item.subject);
   if (Array.isArray(item.errors) && item.errors.length > 0) {
     return {
       kind: 'create_failed',
       groupId,
       requestId,
       error: errorText(item.errors),
+      subject,
+      phoneNumberId,
     };
   }
   return {
@@ -81,6 +91,8 @@ function parseLifecycle(item: Obj): GroupEvent | null {
     groupId,
     requestId,
     inviteLink: str(item.invite_link),
+    subject,
+    phoneNumberId,
   };
 }
 
@@ -99,9 +111,12 @@ function parseParticipants(item: Obj): GroupEvent | null {
 /** Events carried by one webhook `change` (its `field` and `value`). */
 export function parseGroupEvents(field: string, value: unknown): GroupEvent[] {
   if (!isObj(value) || !Array.isArray(value.groups)) return [];
+  const phoneNumberId = isObj(value.metadata)
+    ? str(value.metadata.phone_number_id)
+    : null;
   const parse =
     field === 'group_lifecycle_update'
-      ? parseLifecycle
+      ? (item: Obj) => parseLifecycle(item, phoneNumberId)
       : field === 'group_participants_update'
         ? parseParticipants
         : null;
@@ -112,10 +127,16 @@ export function parseGroupEvents(field: string, value: unknown): GroupEvent[] {
     .filter((e): e is GroupEvent => e !== null);
 }
 
+export interface ApplyHooks {
+  /** Called once a group has become active, with the row and its invite link. Must not throw. */
+  onActive?: (group: GroupRow, inviteLink: string) => void;
+}
+
 /** Applies one event. Returns a short outcome for the log; never throws on an unknown group. */
 export async function applyGroupEvent(
   store: GroupStore,
-  event: GroupEvent
+  event: GroupEvent,
+  hooks: ApplyHooks = {}
 ): Promise<string> {
   if (event.kind === 'joined' || event.kind === 'left') {
     const group = await store.findByWa({ groupId: event.groupId });
@@ -127,6 +148,8 @@ export async function applyGroupEvent(
   const group = await store.findByWa({
     requestId: event.requestId,
     groupId: event.groupId,
+    subject: event.subject,
+    phoneNumberId: event.phoneNumberId,
   });
   if (!group) return 'unknown_group';
 
@@ -152,5 +175,6 @@ export async function applyGroupEvent(
     creation_error: null,
     wa_group_id: event.groupId ?? group.wa_group_id,
   });
+  hooks.onActive?.(group, event.inviteLink);
   return 'active';
 }
