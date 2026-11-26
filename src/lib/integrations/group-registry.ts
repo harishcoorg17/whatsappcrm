@@ -106,8 +106,28 @@ export async function registerPendingGroup(
     return (data as { id: string } | null)?.id ?? null;
   };
 
+  // A repeat registration refreshes the group's details (for example a new naming rule), but not once the
+  // group is being created or exists on WhatsApp, where the name is already set.
+  const refreshDetails = async (groupId: string) => {
+    const { error } = await db
+      .from('whatsapp_groups')
+      .update({
+        name: input.name,
+        description: input.description,
+        capacity: input.capacity,
+        departure_date: input.departureDate,
+      })
+      .eq('id', groupId)
+      .eq('tenant_id', tenantId)
+      .in('creation_status', ['manual', 'failed']);
+    if (error) console.warn('[integrations/groups] could not refresh the group:', error.message);
+  };
+
   const existing = await findExisting();
-  if (existing) return { ok: true, status: 'duplicate', groupId: existing };
+  if (existing) {
+    await refreshDetails(existing);
+    return { ok: true, status: 'duplicate', groupId: existing };
+  }
 
   const { data, error } = await db
     .from('whatsapp_groups')

@@ -92,6 +92,8 @@ export function buildSystemPrompt(input: {
   leadCapture?: boolean;
   /** Set when an earlier message already showed this contact is a partner, not a customer. */
   knownPartner?: PartnerType | null;
+  /** We started this chat (or the contact is a partner): never ask what trip or tour they want. */
+  outreach?: boolean;
 }): string {
   const lines = [
     `You are the WhatsApp assistant for ${input.businessName}. You chat with customers on behalf of the team.`,
@@ -113,6 +115,15 @@ export function buildSystemPrompt(input: {
     '- Acknowledge what they sent and say our team will review it and come back to them. You may ask for one missing detail about their own offer at a time: validity, inclusions and exclusions, per-person or total price, taxes, payment and cancellation terms.',
     '- Never share any traveller name, phone number, email or trip detail beyond what they already have, our selling prices or margins, or another supplier\'s rates.',
     '- Never accept, reject, negotiate or confirm a rate, booking, room block, vehicle or payment. If they ask for any of that, or raise an invoice, payment, dispute or something urgent, hand off to a human.',
+    ...(input.outreach
+      ? [
+          '',
+          'This conversation is business outreach: we wrote to this person first, or they are our partner (for example a DMC we asked for itineraries and B2B rates). They are not shopping for a trip.',
+          '- Never ask which tour, destination, dates, budget or group size they want to travel on, and never pitch tours.',
+          '- Reply in one or two short lines: thank them, and answer or acknowledge what they actually wrote (for example "Thank you for sharing the itineraries, our team will review them and come back to you").',
+          '- Treat the person as a partner when they are one. If it is clearly a customer who is replying to our message, thank them and hand off to a human.',
+        ]
+      : []),
     '',
     'Output ONLY one JSON object, nothing else:',
     '{"action":"reply","text":"<message to send>","sender":"<customer|dmc|hotel|transport|vendor>"}',
@@ -120,7 +131,7 @@ export function buildSystemPrompt(input: {
     '{"action":"handoff","reason":"<short note for the team on why>","sender":"<customer|dmc|hotel|transport|vendor>"}',
     '"sender" is who you believe is writing. Always include it.',
   ];
-  if (input.leadCapture) {
+  if (input.leadCapture && !input.outreach) {
     lines.push(
       '',
       'Trip details (customers only, never for partners): when the customer tells you where they want to go, when, how many people are travelling or their budget, add this to the same JSON object:',

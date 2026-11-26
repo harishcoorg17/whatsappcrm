@@ -132,6 +132,28 @@ describe('buildSystemPrompt', () => {
     expect(prompt).not.toContain('Business instructions:');
     expect(prompt).not.toContain('Business information:');
   });
+
+  it('for outreach chats forbids asking about trips and drops lead capture', () => {
+    const outreach = buildSystemPrompt({
+      businessName: 'Amstago',
+      instructions: null,
+      knowledge: null,
+      leadCapture: true,
+      outreach: true,
+    });
+    expect(outreach).toContain('business outreach');
+    expect(outreach).toContain('Never ask which tour');
+    expect(outreach).not.toContain('"lead":{');
+
+    const ordinary = buildSystemPrompt({
+      businessName: 'Amstago',
+      instructions: null,
+      knowledge: null,
+      leadCapture: true,
+    });
+    expect(ordinary).not.toContain('business outreach');
+    expect(ordinary).toContain('"lead":{');
+  });
 });
 
 describe('shouldAnswer', () => {

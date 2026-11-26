@@ -18,6 +18,12 @@ import { applyInboundRules } from '@/lib/whatsapp/inbound-rules';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
 import { handleConsentKeyword } from '@/lib/whatsapp/consent';
 import { runAiAgent } from '@/lib/ai/agent';
+import {
+  THANK_YOU_REPLY,
+  detectOutreach,
+  thankYouSentRecently,
+} from '@/lib/ai/outreach';
+import { engineSendText } from '@/lib/flows/meta-send';
 import { parseTourEnquiry } from '@/lib/ai/tour-enquiry';
 import { isAiReady } from '@/lib/ai/tour-facts';
 import { persistAdReferral } from '@/lib/whatsapp/referral-store';
@@ -910,12 +916,23 @@ async function processMessage(
   // A message from a tour page's WhatsApp button names the tour, so the AI
   // (which can look that tour up) answers it instead of a fixed menu. Only
   // when the AI is ready; otherwise the flows keep handling it.
+  // Chats the business started, and partners such as DMCs, never get the
+  // customer defaults (bot menu asking which tour to travel on, welcome
+  // automations, away message): they get a thank-you or a reply that fits.
+  const outreach = tenantId
+    ? await detectOutreach(supabaseAdmin(), {
+        userId,
+        contactId: contactRecord.id,
+        conversationId: conversation.id,
+      })
+    : null;
   const tourEnquiryForAi =
+    !outreach &&
     !!tenantId &&
     !interactiveReplyId &&
     !!parseTourEnquiry(contentText ?? message.text?.body) &&
     (await isAiReady(supabaseAdmin(), tenantId));
-  const flowResult = tourEnquiryForAi
+  const flowResult = tourEnquiryForAi || outreach
     ? { consumed: false }
     : await dispatchInboundToFlows({
         userId,
@@ -958,8 +975,27 @@ async function processMessage(
             }
           : null,
       inboundMessageId: message.id,
+      outreach: !!outreach,
     });
     aiHandled = aiOutcome !== 'skipped';
+  }
+
+  // Outreach chat the AI could not answer (AI off, not set up or at its limit):
+  // one plain thank-you, at most once a day, instead of any default reply.
+  if (outreach && !aiHandled) {
+    const alreadyThanked = await thankYouSentRecently(
+      supabaseAdmin(),
+      conversation.id
+    );
+    if (!alreadyThanked) {
+      await engineSendText({
+        userId,
+        conversationId: conversation.id,
+        contactId: contactRecord.id,
+        text: THANK_YOU_REPLY,
+      }).catch((err) => console.error('[outreach] thank-you failed:', err));
+      aiHandled = true;
+    }
   }
 
   // Tenant rules: auto-assign a new chat to a team member, and send the away
@@ -977,7 +1013,7 @@ async function processMessage(
       contactPhone: contactRecord.phone,
       accessToken,
       phoneNumberId: receivingNumberId ?? null,
-      suppressAway: flowConsumed || aiHandled,
+      suppressAway: flowConsumed || aiHandled || !!outreach,
     });
   }
 
@@ -995,7 +1031,7 @@ async function processMessage(
   )[] = [];
   // Content-level triggers are suppressed when a flow consumed the
   // message — see the comment block above.
-  if (!flowConsumed && !aiHandled) {
+  if (!flowConsumed && !aiHandled && !outreach) {
     automationTriggers.push('new_message_received', 'keyword_match');
   }
   // new_contact_created fires only when the webhook just auto-created the
@@ -1004,9 +1040,10 @@ async function processMessage(
   // manually-imported contacts sending for the first time. We dispatch both
   // so users can pick whichever semantic they want; an automation that
   // listens to only one trigger runs only when that trigger matches.
-  if (contactOutcome.wasCreated)
+  // None of them fire for outreach chats: those are usually the welcome replies.
+  if (contactOutcome.wasCreated && !outreach)
     automationTriggers.unshift('new_contact_created');
-  if (isFirstInboundMessage)
+  if (isFirstInboundMessage && !outreach)
     automationTriggers.unshift('first_inbound_message');
   for (const triggerType of automationTriggers) {
     runAutomationsForTrigger({

@@ -46,6 +46,8 @@ export interface RunAiAgentInput {
   inboundAudio?: InboundAudio | null;
   /** Meta's id for the inbound message, to store the transcript against it. */
   inboundMessageId?: string | null;
+  /** We started this chat, or the contact is a partner (DMC): thank and answer, never ask for trip details. */
+  outreach?: boolean;
 }
 
 export interface InboundAudio {
@@ -323,7 +325,7 @@ export async function runAiAgent(
       input.contactId
     );
     // A customer who came from a tour page gets answers about that tour.
-    const tourFacts = knownPartner
+    const tourFacts = knownPartner || input.outreach
       ? ''
       : await loadTourKnowledge({
       db: input.db,
@@ -359,8 +361,9 @@ export async function runAiAgent(
         knowledge: [config.ai_knowledge, tourFacts]
           .filter((part) => part?.trim())
           .join('\n\n'),
-        leadCapture: !!config.ai_lead_capture && !knownPartner,
+        leadCapture: !!config.ai_lead_capture && !knownPartner && !input.outreach,
         knownPartner,
+        outreach: input.outreach,
       }),
       messages,
     });
@@ -387,7 +390,7 @@ export async function runAiAgent(
         `[ai-agent] contact ${input.contactId} identified as ${decision.partner}`
       );
     }
-    if (config.ai_lead_capture && decision.lead && !partner) {
+    if (config.ai_lead_capture && decision.lead && !partner && !input.outreach) {
       await saveLead({
         db: input.db,
         userId: input.userId,
