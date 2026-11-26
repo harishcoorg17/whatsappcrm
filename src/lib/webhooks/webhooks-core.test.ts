@@ -20,7 +20,7 @@ describe('events', () => {
 
   it('defaults to every event when none is given and rejects bad lists', () => {
     const all = parseEvents(undefined);
-    expect(all.ok && all.events.length).toBe(3);
+    expect(all.ok && all.events.length).toBe(4);
     expect(parseEvents([]).ok).toBe(false);
     expect(parseEvents('message.received').ok).toBe(false);
     expect(parseEvents(['message.received', 'bogus']).ok).toBe(false);

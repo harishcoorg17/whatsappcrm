@@ -10,6 +10,7 @@ const row = (over: Partial<GroupRow> = {}): GroupRow => ({
   description: 'Led by Ravi',
   invite_url: null,
   creation_status: 'manual',
+  external_ref: 'tour-1',
   wa_request_id: null,
   wa_group_id: null,
   wa_phone_number_id: null,

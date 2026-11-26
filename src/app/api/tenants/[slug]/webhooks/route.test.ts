@@ -185,7 +185,7 @@ describe('POST /api/tenants/[slug]/webhooks', () => {
 
   it('defaults to all events', async () => {
     await post({ url: 'https://ok.example.com/hook' });
-    expect(state.inserted[0].events).toHaveLength(3);
+    expect(state.inserted[0].events).toHaveLength(4);
   });
 
   it('refuses an unsafe or missing URL', async () => {

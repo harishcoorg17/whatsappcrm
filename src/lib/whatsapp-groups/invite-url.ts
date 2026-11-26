@@ -36,8 +36,11 @@ export function validateInviteUrl(kind: GroupKind, raw: unknown): ValidatedUrl {
   if (typeof raw !== 'string') {
     return { ok: false, error: 'Paste the invite link' };
   }
-  const url = raw.trim();
-  if (!url) return { ok: false, error: 'Paste the invite link' };
+  const trimmed = raw.trim();
+  if (!trimmed) return { ok: false, error: 'Paste the invite link' };
+  // WhatsApp adds tracking like ?mode=gi_t when a link is copied. Keep only the link itself, so what is
+  // stored and sent is always the strict form.
+  const url = trimmed.replace(/[?#].*$/, '').replace(/\/+$/, '');
   if (url.length > MAX_URL_LENGTH) {
     return { ok: false, error: 'That link is too long' };
   }

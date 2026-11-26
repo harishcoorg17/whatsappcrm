@@ -7,6 +7,21 @@ describe('validateInviteUrl', () => {
     expect(r).toEqual({ ok: true, url: 'https://chat.whatsapp.com/AbC123_-xyz' });
   });
 
+  it('drops the tracking WhatsApp adds when a link is copied, keeping only the link', () => {
+    for (const raw of [
+      'https://chat.whatsapp.com/AbC123xyz?mode=gi_t',
+      'https://chat.whatsapp.com/AbC123xyz?mode=ems_copy_t#frag',
+      'https://chat.whatsapp.com/AbC123xyz/',
+    ]) {
+      expect(validateInviteUrl('group', raw)).toEqual({ ok: true, url: 'https://chat.whatsapp.com/AbC123xyz' });
+    }
+  });
+
+  it('still rejects a query on a link that is not a WhatsApp invite', () => {
+    expect(validateInviteUrl('group', 'https://evil.com/AbC?u=https://chat.whatsapp.com/x').ok).toBe(false);
+    expect(validateInviteUrl('group', 'https://chat.whatsapp.com/?mode=gi_t').ok).toBe(false);
+  });
+
   it('accepts a channel link', () => {
     expect(
       validateInviteUrl('channel', 'https://whatsapp.com/channel/0029VaABC123').ok
@@ -19,7 +34,6 @@ describe('validateInviteUrl', () => {
     'https://chat.whatsapp.com.evil.com/abc',
     'https://chat.whatsapp.com@evil.com/abc',
     'https://chat.whatsapp.com:8080/abc',
-    'https://chat.whatsapp.com/abc?x=1',
     'https://chat.whatsapp.com/abc/def',
     'https://chat.whatsapp.com/',
     'javascript:alert(1)',
