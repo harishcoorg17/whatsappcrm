@@ -78,6 +78,20 @@ export default function GroupsPage() {
     void load();
   };
 
+  const createOnWhatsapp = async (group: GroupRow) => {
+    if (!slug) return;
+    const res = await api(
+      `/api/tenants/${encodeURIComponent(slug)}/whatsapp-groups/${group.id}/create`,
+      { method: 'POST' }
+    );
+    if (!res.ok) {
+      toast.error(res.error);
+    } else {
+      toast.success('Asked WhatsApp to create the group. The invite link will appear shortly.');
+    }
+    void load();
+  };
+
   const close = () => setDialog(null);
 
   return (
@@ -126,8 +140,25 @@ export default function GroupsPage() {
                 <TableCell>
                   <p className="font-medium text-slate-100">{g.name}</p>
                   {!g.is_active && <span className="text-xs text-slate-500">Inactive</span>}
-                  {!g.invite_url && (
-                    <span className="text-xs text-amber-400">Needs invite link. Edit to add it.</span>
+                  {g.creation_status === 'creating' && !g.invite_url && (
+                    <span className="text-xs text-sky-400">Creating on WhatsApp… the invite link appears shortly. Refresh in a moment.</span>
+                  )}
+                  {g.creation_status === 'failed' && !g.invite_url && (
+                    <span className="block text-xs text-red-400">
+                      WhatsApp could not create it{g.creation_error ? `: ${g.creation_error}` : '.'}
+                    </span>
+                  )}
+                  {!g.invite_url && g.creation_status !== 'creating' && (
+                    <span className="flex flex-wrap items-center gap-2 text-xs text-amber-400">
+                      Needs invite link. Edit to add it, or
+                      <button
+                        type="button"
+                        className="font-semibold text-primary hover:underline"
+                        onClick={() => void createOnWhatsapp(g)}
+                      >
+                        {g.creation_status === 'failed' ? 'retry creating it on WhatsApp' : 'create it on WhatsApp'}
+                      </button>
+                    </span>
                   )}
                 </TableCell>
                 <TableCell>

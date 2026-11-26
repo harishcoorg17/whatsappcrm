@@ -13,7 +13,7 @@ import { validateGroupInput } from '@/lib/whatsapp-groups/invite-url';
 type Context = { params: Promise<{ slug: string }> };
 
 const COLUMNS =
-  'id, kind, name, invite_url, description, capacity, departure_date, is_active, created_at';
+  'id, kind, name, invite_url, description, capacity, departure_date, is_active, created_at, creation_status, creation_error';
 export const MAX_GROUPS_PER_TENANT = 500;
 
 export async function GET(_request: NextRequest, context: Context) {

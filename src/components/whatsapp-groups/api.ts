@@ -9,6 +9,8 @@ export interface GroupRow {
   capacity: number | null;
   departure_date: string | null;
   is_active: boolean;
+  creation_status: 'manual' | 'creating' | 'active' | 'failed';
+  creation_error: string | null;
   invite_count: number;
   joined_count: number;
 }

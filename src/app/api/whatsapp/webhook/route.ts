@@ -21,6 +21,12 @@ import { runAiAgent } from '@/lib/ai/agent';
 import { parseTourEnquiry } from '@/lib/ai/tour-enquiry';
 import { isAiReady } from '@/lib/ai/tour-facts';
 import { persistAdReferral } from '@/lib/whatsapp/referral-store';
+import {
+  applyGroupEvent,
+  isGroupWebhookField,
+  parseGroupEvents,
+} from '@/lib/whatsapp-groups/group-events';
+import { supabaseGroupStore } from '@/lib/whatsapp-groups/group-store';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -284,6 +290,17 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           value: change.value as unknown,
         });
         console.log('[webhook] coexistence', JSON.stringify(summary));
+        continue;
+      }
+
+      // Groups API: a group the CRM asked for was created (with its invite
+      // link) or failed, or someone joined or left through the invite link.
+      if (isGroupWebhookField(change.field)) {
+        const store = supabaseGroupStore(supabaseAdmin());
+        for (const event of parseGroupEvents(change.field, change.value)) {
+          const outcome = await applyGroupEvent(store, event);
+          console.log('[webhook] group', event.kind, outcome);
+        }
         continue;
       }
 

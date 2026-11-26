@@ -6,7 +6,7 @@ describe('parseGroupRegistration', () => {
     const r = parseGroupRegistration({ reference: 'abc', name: ' Kerala ' });
     expect(r).toEqual({
       ok: true,
-      value: { reference: 'abc', name: 'Kerala', description: null, capacity: null, departureDate: null },
+      value: { reference: 'abc', name: 'Kerala', description: null, capacity: null, departureDate: null, createOnWhatsapp: false },
     });
   });
 
@@ -14,6 +14,13 @@ describe('parseGroupRegistration', () => {
     const r = parseGroupRegistration({ reference: 'a', name: 'n', capacity: 20, departure_date: '2026-12-05' });
     expect(r.ok && r.value.capacity).toBe(20);
     expect(r.ok && r.value.departureDate).toBe('2026-12-05');
+  });
+
+  it('reads the create_on_whatsapp flag only when it is exactly true', () => {
+    const on = parseGroupRegistration({ reference: 'a', name: 'n', create_on_whatsapp: true });
+    const off = parseGroupRegistration({ reference: 'a', name: 'n', create_on_whatsapp: 'yes' });
+    expect(on.ok && on.value.createOnWhatsapp).toBe(true);
+    expect(off.ok && off.value.createOnWhatsapp).toBe(false);
   });
 
   it.each([

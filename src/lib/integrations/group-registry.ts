@@ -19,6 +19,8 @@ export interface GroupRegistration {
   description: string | null;
   capacity: number | null;
   departureDate: string | null;
+  /** Ask WhatsApp to create the group now, instead of waiting for a pasted invite link. */
+  createOnWhatsapp: boolean;
 }
 
 export type ParsedGroupRegistration =
@@ -71,7 +73,14 @@ export function parseGroupRegistration(raw: unknown): ParsedGroupRegistration {
 
   return {
     ok: true,
-    value: { reference, name, description: description || null, capacity, departureDate },
+    value: {
+      reference,
+      name,
+      description: description || null,
+      capacity,
+      departureDate,
+      createOnWhatsapp: body.create_on_whatsapp === true,
+    },
   };
 }
 

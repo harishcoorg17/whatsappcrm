@@ -90,6 +90,41 @@ Errors: `{ "ok": false, "error": { "code": "…", "message": "…" } }`
 Treat 5xx and 429 as retryable with the **same** `reference`. Treat other 4xx as
 a bug in the request.
 
+## Groups: create on WhatsApp and read the invite link
+
+`POST /api/integrations/groups` registers a group trip on the Groups page. Add
+`"create_on_whatsapp": true` to have the CRM create the group through the
+WhatsApp Cloud API Groups API as well:
+
+```json
+{ "reference": "<tour id>", "name": "Kerala (2026-12-05)", "capacity": 20,
+  "departure_date": "2026-12-05", "create_on_whatsapp": true }
+```
+
+Creation is asynchronous. The response says `"creation": "creating"` and the
+group's invite link arrives a moment later from Meta's `group_lifecycle_update`
+webhook. Read it with:
+
+```
+GET /api/integrations/groups?reference=<tour id>
+-> { "ok": true, "group": { "id": "...", "reference": "...",
+     "status": "manual|creating|active|failed", "invite_url": "https://chat.whatsapp.com/..." } }
+```
+
+A repeat `POST` with the same `reference` retries a group whose creation
+failed and leaves a working one alone. `status: "failed"` carries the reason on
+the Groups page, with a retry button.
+
+Requirements (Meta): an Official Business Account, a number that is on the
+Cloud API only (not the WhatsApp Business app / coexistence), and the app's
+webhook subscribed to `group_lifecycle_update`, `group_participants_update`,
+`group_settings_update` and `group_status_update`. Apply migration
+`059_whatsapp_groups_auto_create.sql` first.
+
+Send the invite link to travellers with an approved template through
+`/api/integrations/send-template` (Amstago uses `amstago_group_invite`:
+`{{1}}` name, `{{2}}` tour, `{{3}}` invite link).
+
 ## Suggested event map (backend side)
 
 | Backend event | Template | `reference` |
