@@ -296,6 +296,11 @@ export function MessageBubble({
             : 'rounded-bl-md bg-slate-800 text-slate-100'
         )}
       >
+        {!isAgent && message.sender_name && (
+          <p className="mb-0.5 text-[11px] font-semibold text-emerald-300">
+            {message.sender_name}
+          </p>
+        )}
         {reply && (
           <ReplyQuote authorLabel={reply.authorLabel} preview={reply.preview} />
         )}

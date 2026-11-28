@@ -797,7 +797,9 @@ export function MessageThread({
             <h2 className="truncate text-sm font-semibold text-white">
               {displayName}
             </h2>
-            <p className="truncate text-xs text-slate-400">{contact.phone}</p>
+            <p className="truncate text-xs text-slate-400">
+              {conversation?.wa_group_id ? 'WhatsApp group' : contact.phone}
+            </p>
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}

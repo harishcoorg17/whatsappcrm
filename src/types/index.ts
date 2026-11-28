@@ -77,6 +77,8 @@ export interface Conversation {
   status: ConversationStatus;
   assigned_agent_id?: string;
   tenant_id?: string | null;
+  /** Set when this is a WhatsApp group's chat (migration 061); the Meta group id. */
+  wa_group_id?: string | null;
   /** The tenant WhatsApp number this conversation is on (tenants can have several). */
   phone_number_id?: string | null;
   /** Set when the bot handed the chat to a human; bot is silent while status is 'pending'. */
@@ -132,6 +134,9 @@ export interface Message {
   status: MessageStatus;
   created_at: string;
   reply_to_message_id?: string;
+  /** In a WhatsApp group chat: who wrote this message (migration 061). */
+  sender_name?: string | null;
+  sender_wa_id?: string | null;
   /** True for replies written by the AI agent (sender_type is still 'bot'). */
   sent_by_ai?: boolean;
   /**

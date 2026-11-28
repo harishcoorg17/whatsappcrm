@@ -158,7 +158,9 @@ export function ContactSidebar({ contact, conversation }: ContactSidebarProps) {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-slate-800"
             >
               <Phone className="h-4 w-4 text-slate-500" />
-              <span className="flex-1 text-left">{contact.phone}</span>
+              <span className="flex-1 text-left">
+                {contact.phone.startsWith('group:') ? 'WhatsApp group' : contact.phone}
+              </span>
               {copied ? (
                 <Check className="text-primary h-3 w-3" />
               ) : (

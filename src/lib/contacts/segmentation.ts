@@ -19,7 +19,9 @@ export class AudienceSegmentation {
     let query = this.supabase
       .from('contacts')
       .select('*')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      // Placeholder contacts for WhatsApp groups are never a broadcast audience.
+      .not('phone', 'like', 'group:%');
 
     // Apply tag filters
     if (filter.tags && filter.tags.tag_ids && filter.tags.tag_ids.length > 0) {
@@ -100,7 +102,8 @@ export class AudienceSegmentation {
     const { count: total } = await this.supabase
       .from('contacts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .not('phone', 'like', 'group:%');
 
     const matching = await this.countFilteredContacts(userId, filter);
 

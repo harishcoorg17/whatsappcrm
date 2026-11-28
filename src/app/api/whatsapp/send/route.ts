@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api';
-import { loadWhatsAppCredentials } from '@/lib/whatsapp/credentials';
+import {
+  loadNumberCredentials,
+  loadWhatsAppCredentials,
+} from '@/lib/whatsapp/credentials';
 import { supabaseAdmin } from '@/lib/flows/admin-client';
 import { canActOnConversation } from '@/lib/tenants/conversation-access';
 import { emitWebhookEvent } from '@/lib/webhooks/deliver';
@@ -101,6 +104,105 @@ export async function POST(request: Request) {
     // filed under the owner, which is not the caller when an agent replies.
     const ownerUserId: string = conversation.user_id;
     const ownerData = ownerUserId === user.id ? supabase : supabaseAdmin();
+
+    // A WhatsApp group's conversation: text only, sent to the group itself
+    // (not to a phone number), from the number that created the group.
+    if (conversation.wa_group_id) {
+      if (message_type !== 'text') {
+        return NextResponse.json(
+          { error: 'Only text messages can be sent to a WhatsApp group' },
+          { status: 400 }
+        );
+      }
+      const { data: groupRow } = await ownerData
+        .from('whatsapp_groups')
+        .select('wa_phone_number_id')
+        .eq('tenant_id', conversation.tenant_id)
+        .eq('wa_group_id', conversation.wa_group_id)
+        .maybeSingle();
+      const creatingNumber = (
+        groupRow as { wa_phone_number_id: string | null } | null
+      )?.wa_phone_number_id;
+      const groupCredentials =
+        (creatingNumber
+          ? await loadNumberCredentials(
+              ownerData,
+              conversation.tenant_id,
+              creatingNumber
+            )
+          : null) ??
+        (await loadWhatsAppCredentials(
+          ownerData,
+          ownerUserId,
+          conversation.tenant_id
+        ));
+      if (!groupCredentials) {
+        return NextResponse.json(
+          { error: 'WhatsApp not configured. Please set up your WhatsApp integration first.' },
+          { status: 400 }
+        );
+      }
+
+      let groupWaMessageId: string;
+      try {
+        const sent = await sendTextMessage({
+          phoneNumberId: groupCredentials.phoneNumberId,
+          accessToken: groupCredentials.accessToken,
+          to: conversation.wa_group_id,
+          text: content_text,
+          recipientType: 'group',
+        });
+        groupWaMessageId = sent.messageId;
+      } catch (err) {
+        console.error(
+          '[whatsapp/send] group send failed:',
+          err instanceof Error ? err.message : err
+        );
+        return NextResponse.json(
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : 'WhatsApp could not send to the group',
+          },
+          { status: 502 }
+        );
+      }
+
+      const { data: groupMessage, error: groupMsgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id,
+          sender_type: 'agent',
+          content_type: 'text',
+          content_text,
+          message_id: groupWaMessageId,
+          status: 'sent',
+        })
+        .select()
+        .single();
+      if (groupMsgError || !groupMessage) {
+        return NextResponse.json(
+          {
+            error: `Message sent to WhatsApp but failed to save: ${groupMsgError?.message ?? 'no row'}`,
+          },
+          { status: 500 }
+        );
+      }
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: content_text,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversation_id);
+      return NextResponse.json({
+        success: true,
+        message_id: groupMessage.id,
+        whatsapp_message_id: groupWaMessageId,
+      });
+    }
 
     const contact = conversation.contact;
     if (!contact?.phone) {

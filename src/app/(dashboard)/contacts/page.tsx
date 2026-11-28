@@ -96,6 +96,7 @@ export default function ContactsPage() {
       supabase
         .from('contacts')
         .select('*', { count: 'exact' })
+        .not('phone', 'like', 'group:%')
         .order('created_at', { ascending: false })
         .range(from, to),
       scope

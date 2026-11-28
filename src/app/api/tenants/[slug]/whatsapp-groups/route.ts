@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authorizeTenantAccess, problem } from '@/lib/tenants/authorize-tenant';
-import { validateGroupInput } from '@/lib/whatsapp-groups/invite-url';
+import {
+  validateGroupDraft,
+  validateGroupInput,
+} from '@/lib/whatsapp-groups/invite-url';
+import { loadTenantNumberCredentials } from '@/lib/whatsapp/credentials';
+import { startGroupCreation } from '@/lib/whatsapp-groups/auto-create';
+import {
+  GROUP_COLUMNS,
+  supabaseGroupStore,
+  type GroupRow,
+} from '@/lib/whatsapp-groups/group-store';
 
 /**
  * A tenant's registry of WhatsApp groups and channels (created by hand in
@@ -42,7 +52,10 @@ export async function GET(_request: NextRequest, context: Context) {
       const { data: invites } = await auth.db
         .from('whatsapp_group_invites')
         .select('group_id, status')
-        .in('group_id', groups.map((g) => g.id))
+        .in(
+          'group_id',
+          groups.map((g) => g.id)
+        )
         .limit(50000);
       for (const row of (invites ?? []) as Array<{
         group_id: string;
@@ -75,8 +88,15 @@ export async function POST(request: NextRequest, context: Context) {
     const auth = await authorizeTenantAccess(slug, { allowTeamAdmins: true });
     if (!auth.ok) return auth.response;
 
-    const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-    const parsed = validateGroupInput(body);
+    const body = (await request.json().catch(() => ({}))) as Record<
+      string,
+      unknown
+    >;
+    // Create it on WhatsApp now (Meta's Groups API): no invite link is needed up front.
+    const createOnWhatsapp = body.create_on_whatsapp === true;
+    const parsed = createOnWhatsapp
+      ? validateGroupDraft(body)
+      : validateGroupInput(body);
     if (!parsed.ok) return problem(parsed.error, 400).response;
 
     const { count } = await auth.db
@@ -97,8 +117,35 @@ export async function POST(request: NextRequest, context: Context) {
       console.error('[whatsapp-groups] create failed:', error.message);
       return problem('Could not save the group', 500).response;
     }
+
+    let creation: { status: string; error?: string } | undefined;
+    let group = data as Record<string, unknown>;
+    if (createOnWhatsapp) {
+      const { data: row } = await auth.db
+        .from('whatsapp_groups')
+        .select(GROUP_COLUMNS)
+        .eq('id', (data as { id: string }).id)
+        .single();
+      const ownerId = auth.tenant.owner_user_id;
+      const numbers = ownerId
+        ? await loadTenantNumberCredentials(auth.db, ownerId, auth.tenant.id)
+        : [];
+      const result = await startGroupCreation(row as GroupRow, {
+        store: supabaseGroupStore(auth.db),
+        numbers,
+      });
+      creation = result.ok
+        ? { status: result.status }
+        : { status: 'failed', error: result.message };
+      const { data: fresh } = await auth.db
+        .from('whatsapp_groups')
+        .select(COLUMNS)
+        .eq('id', (data as { id: string }).id)
+        .single();
+      group = (fresh as Record<string, unknown>) ?? group;
+    }
     return NextResponse.json(
-      { group: { ...data, invite_count: 0, joined_count: 0 } },
+      { group: { ...group, invite_count: 0, joined_count: 0 }, creation },
       { status: 201 }
     );
   } catch (error) {

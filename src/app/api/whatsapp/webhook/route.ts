@@ -33,6 +33,10 @@ import {
   parseGroupEvents,
 } from '@/lib/whatsapp-groups/group-events';
 import { supabaseGroupStore } from '@/lib/whatsapp-groups/group-store';
+import {
+  isGroupContactPhone,
+  recordGroupMessage,
+} from '@/lib/whatsapp-groups/group-chat';
 
 // Lazy-initialized to avoid build-time crash when env vars are missing
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -50,6 +54,8 @@ function supabaseAdmin() {
 interface WhatsAppMessage {
   id: string;
   from: string;
+  /** Set when the message was written in a WhatsApp group (Groups API). */
+  group_id?: string;
   timestamp: string;
   type: string;
   text?: { body: string };
@@ -689,6 +695,31 @@ async function processMessage(
   /** The tenant number the customer wrote to (tenants can have several). */
   receivingNumberId?: string
 ) {
+  // A message written in a WhatsApp group goes to that group's conversation
+  // in the inbox. None of the one-to-one handling applies to it: no flows,
+  // AI, automations or away message, which would answer the whole group.
+  if (message.group_id) {
+    if (message.type === 'reaction' || !tenantId) return;
+    const parsed = await parseMessageContent(message, accessToken);
+    const outcome = await recordGroupMessage(supabaseAdmin(), {
+      tenantId,
+      ownerUserId: userId,
+      waGroupId: message.group_id,
+      messageId: message.id,
+      sender: {
+        name: contact.profile?.name,
+        waId: message.from || contact.wa_id,
+      },
+      content: {
+        text: parsed.contentText,
+        mediaUrl: parsed.mediaUrl,
+        mediaType: parsed.mediaType,
+      },
+    });
+    console.log('[webhook] group message', outcome);
+    return;
+  }
+
   const senderPhone = normalizePhone(message.from);
   const contactName = contact.profile?.name ?? message.from;
 
@@ -1236,8 +1267,8 @@ async function findOrCreateContact(
   }
 
   // Use phonesMatch for flexible matching
-  const existingContact = contacts?.find((c: ContactRow) =>
-    phonesMatch(c.phone, phone)
+  const existingContact = contacts?.find(
+    (c: ContactRow) => !isGroupContactPhone(c.phone) && phonesMatch(c.phone, phone)
   );
 
   if (existingContact) {

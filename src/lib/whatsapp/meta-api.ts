@@ -253,6 +253,8 @@ export interface SendTextMessageArgs {
   /** Meta's message_id of the message being replied to. Adds a `context` field
    *  so WhatsApp renders the new message as a reply with a quote preview. */
   contextMessageId?: string;
+  /** `group` sends to a WhatsApp group (`to` is then the group id). Defaults to `individual`. */
+  recipientType?: 'individual' | 'group';
 }
 
 /**
@@ -266,7 +268,7 @@ export async function sendTextMessage(
   const url = `${META_API_BASE}/${phoneNumberId}/messages`;
   const body: Record<string, unknown> = {
     messaging_product: 'whatsapp',
-    recipient_type: 'individual',
+    recipient_type: args.recipientType ?? 'individual',
     to,
     type: 'text',
     text: { body: text },

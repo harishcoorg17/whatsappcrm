@@ -35,29 +35,49 @@ export function GroupFormDialog({ slug, group, onClose, onSaved }: Props) {
   const [departure, setDeparture] = useState(group?.departure_date ?? '');
   const [active, setActive] = useState(group?.is_active ?? true);
   const [saving, setSaving] = useState(false);
+  // A new group is created on WhatsApp by default (Meta's official Groups API). Untick to paste a link instead.
+  const [createNow, setCreateNow] = useState(true);
+  const creating = !group && kind === 'group' && createNow;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     const base = `/api/tenants/${encodeURIComponent(slug)}/whatsapp-groups`;
-    const res = await api(group ? `${base}/${group.id}` : base, {
-      method: group ? 'PATCH' : 'POST',
-      body: JSON.stringify({
-        kind,
-        name,
-        invite_url: url,
-        description,
-        capacity: capacity || null,
-        departure_date: departure || null,
-        is_active: active,
-      }),
-    });
+    const res = await api<{ creation?: { status: string; error?: string } }>(
+      group ? `${base}/${group.id}` : base,
+      {
+        method: group ? 'PATCH' : 'POST',
+        body: JSON.stringify({
+          kind,
+          name,
+          ...(creating ? { create_on_whatsapp: true } : { invite_url: url }),
+          description,
+          capacity: capacity || null,
+          departure_date: departure || null,
+          is_active: active,
+        }),
+      }
+    );
     setSaving(false);
     if (!res.ok) {
       toast.error(res.error);
       return;
     }
-    toast.success(group ? 'Saved' : 'Added');
+    if (creating) {
+      const creation = res.data.creation;
+      if (creation?.status === 'failed') {
+        // The group is saved; the page shows the reason and a retry button.
+        toast.error(
+          `Saved, but WhatsApp could not create it: ${creation.error ?? 'unknown reason'}`
+        );
+      } else {
+        toast.success(
+          'Asked WhatsApp to create the group. Its invite link appears shortly.'
+        );
+      }
+    } else {
+      toast.success(group ? 'Saved' : 'Added');
+    }
     onSaved();
   };
 
@@ -67,7 +87,9 @@ export function GroupFormDialog({ slug, group, onClose, onSaved }: Props) {
         <DialogHeader>
           <DialogTitle>{group ? 'Edit' : 'Add'} group or channel</DialogTitle>
           <DialogDescription>
-            Create it in the WhatsApp app first, then paste its invite link here.
+            {group
+              ? 'Update the details or the invite link.'
+              : 'Create the group on WhatsApp from here, or paste the link of one you made yourself.'}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={save} className="space-y-3">
@@ -95,23 +117,43 @@ export function GroupFormDialog({ slug, group, onClose, onSaved }: Props) {
               required
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="g-url">Invite link</Label>
-            <input
-              id="g-url"
-              className={inputClass}
-              value={url}
-              maxLength={300}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={
-                kind === 'group'
-                  ? 'https://chat.whatsapp.com/…'
-                  : 'https://whatsapp.com/channel/…'
-              }
-              required
-            />
-            <p className="text-xs text-slate-500">{URL_HINTS[kind]}</p>
-          </div>
+          {!group && kind === 'group' && (
+            <div className="flex items-start justify-between gap-3 rounded-lg border border-slate-700 p-3">
+              <div>
+                <Label htmlFor="g-create">Create it on WhatsApp now</Label>
+                <p className="text-xs text-slate-500">
+                  Uses Meta&apos;s official Groups API. Needs a number
+                  registered on the Cloud API only (not the WhatsApp Business
+                  app) with Official Business Account status. A group holds up
+                  to 8 people.
+                </p>
+              </div>
+              <Switch
+                id="g-create"
+                checked={createNow}
+                onCheckedChange={setCreateNow}
+              />
+            </div>
+          )}
+          {!creating && (
+            <div className="space-y-1.5">
+              <Label htmlFor="g-url">Invite link</Label>
+              <input
+                id="g-url"
+                className={inputClass}
+                value={url}
+                maxLength={300}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={
+                  kind === 'group'
+                    ? 'https://chat.whatsapp.com/…'
+                    : 'https://whatsapp.com/channel/…'
+                }
+                required
+              />
+              <p className="text-xs text-slate-500">{URL_HINTS[kind]}</p>
+            </div>
+          )}
           {kind === 'group' && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -151,7 +193,11 @@ export function GroupFormDialog({ slug, group, onClose, onSaved }: Props) {
           </div>
           <div className="flex items-center justify-between">
             <Label htmlFor="g-active">Active (can be sent to customers)</Label>
-            <Switch id="g-active" checked={active} onCheckedChange={setActive} />
+            <Switch
+              id="g-active"
+              checked={active}
+              onCheckedChange={setActive}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
@@ -159,7 +205,7 @@ export function GroupFormDialog({ slug, group, onClose, onSaved }: Props) {
             </Button>
             <Button type="submit" disabled={saving}>
               {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
-              Save
+              {creating ? 'Create group' : 'Save'}
             </Button>
           </DialogFooter>
         </form>

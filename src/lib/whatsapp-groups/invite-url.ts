@@ -69,11 +69,15 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 function isRealDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;
   const parsed = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value);
+  return (
+    !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value)
+  );
 }
 
 /** Validate a full create payload. */
-export function validateGroupInput(body: Record<string, unknown>): ValidatedGroup {
+export function validateGroupInput(
+  body: Record<string, unknown>
+): ValidatedGroup {
   if (!isGroupKind(body.kind)) {
     return { ok: false, error: 'kind must be "group" or "channel"' };
   }
@@ -82,7 +86,10 @@ export function validateGroupInput(body: Record<string, unknown>): ValidatedGrou
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) return { ok: false, error: 'Give it a name' };
   if (name.length > MAX_NAME_LENGTH) {
-    return { ok: false, error: `Keep the name under ${MAX_NAME_LENGTH} characters` };
+    return {
+      ok: false,
+      error: `Keep the name under ${MAX_NAME_LENGTH} characters`,
+    };
   }
 
   const url = validateInviteUrl(kind, body.invite_url);
@@ -98,7 +105,11 @@ export function validateGroupInput(body: Record<string, unknown>): ValidatedGrou
   }
 
   let capacity: number | null = null;
-  if (body.capacity !== null && body.capacity !== undefined && body.capacity !== '') {
+  if (
+    body.capacity !== null &&
+    body.capacity !== undefined &&
+    body.capacity !== ''
+  ) {
     const n = Number(body.capacity);
     if (!Number.isInteger(n) || n < 1 || n > MAX_CAPACITY) {
       return {
@@ -138,4 +149,25 @@ export function validateGroupInput(body: Record<string, unknown>): ValidatedGrou
       is_active: body.is_active !== false,
     },
   };
+}
+
+export type GroupDraft = Omit<GroupInput, 'invite_url'> & { invite_url: null };
+export type ValidatedGroupDraft =
+  | { ok: true; value: GroupDraft }
+  | { ok: false; error: string };
+
+/**
+ * A group that is about to be created on WhatsApp, so it has no invite link yet (the link arrives from
+ * Meta once the group exists). Same checks as a full group; only groups, never channels.
+ */
+export function validateGroupDraft(
+  body: Record<string, unknown>
+): ValidatedGroupDraft {
+  const checked = validateGroupInput({
+    ...body,
+    kind: 'group',
+    invite_url: 'https://chat.whatsapp.com/pending',
+  });
+  if (!checked.ok) return checked;
+  return { ok: true, value: { ...checked.value, invite_url: null } };
 }
